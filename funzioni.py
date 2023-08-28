@@ -30,16 +30,28 @@ def crea_indicatori(df):
 #    vhf = ta.vhf(close=df['Close'], length=20)
     atr = ta.atr(high=df['High'], low=df['Low'], close=df['Close'])
 
+    ticksize = tick_size(df)
+    ema5 = ema5.round(ticksize)
+    ema20 = ema20.round(ticksize)    
+    ema50 = ema50.round(ticksize)
+    ema100 = ema100.round(ticksize)
+    psar["PSAR"] = psar["PSAR"].round(ticksize)
+    macd = macd.round(ticksize)
+    tsi = tsi.round(0)
+    trix = trix.round(ticksize)
+    atr = atr.round(ticksize)
+    
     df = pd.concat([df, ema5, ema20, ema50, ema100, psar, macd, tsi, supertrend, adx, trix, vi, aroon, nvi, pvi, atr], axis=1)
 
     df = __rinomina_colonne(df)
+    df["SUPERT"] = df["SUPERT"].round(ticksize)
 
     df = __calcolo_drawdown_gain(df, 20)
 
-    df['HLC3'] = (df['High'] + df['Low'] + df['Close']) / 3
-    df["DM_OSC"] = df["DMP"] - df["DMN"]
-    df["VTX_OSC"] = df["VTXP"] - df["VTXM"]
-    df["VI_OSC"] = df["PVI"] - df["NVI"]
+    df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3).round(ticksize)
+    df["DM_OSC"] = (df["DMP"] - df["DMN"]).round(ticksize)
+    df["VTX_OSC"] = (df["VTXP"] - df["VTXM"]).round(ticksize)
+    df["VI_OSC"] = (df["PVI"] - df["NVI"]).round(0)
     
     df.drop(columns=["DMP", "DMN", "VTXP", "VTXM", "PVI", "NVI", "AROOND", "AROONU"], inplace=True, axis=1)
     
@@ -58,12 +70,22 @@ def crea_indicatori(df):
             df.at[current_index, 'guadagno_max_perc'] = ((row['Close'] - current_close) / current_close * 100).astype("int8")
             current_index = None
 
-
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True, axis=0)
-
-    df = __riduci_dimensioni_colonne(df)
+    
+    df["Perc_Max_High_Futuro_20d"] = df["Perc_Max_High_Futuro_20d"].round(0)
+    df["Perc_Drawdown_20d"] = df["Perc_Drawdown_20d"].round(0)
+    df["Adj Close"] = df["Adj Close"].round(ticksize)
+    
     return df
+
+
+def tick_size(df):
+    #prezzo = df["Close"].iloc[-1]
+    #prezzo_str = str(prezzo)
+    #tick_size = len(prezzo_str.split('.')[1])
+    tick_size = 2
+    return tick_size
 
 
 def __trova_massimi_minimi(df, periodo):
@@ -155,6 +177,248 @@ def __calcolo_drawdown_gain(df, periodo):
 
 
 def grafico_base(df): 
+    close = go.Scatter(
+        x = df.index,
+        y = df['Close'],
+        mode = 'lines',
+        line = dict(color='rgba(0, 0, 0, .9)'),
+        name = 'Close'
+    )
+
+    close2 = go.Scatter( # serve solo per il fill del supertrend
+        x = df.index,
+        y = df['Close'],
+        mode = 'lines',
+        line = dict(color='rgba(0, 0, 0, 0)'),
+        showlegend=False,
+        name = 'Close2'
+    )
+
+    min5 = go.Scatter(
+        x = df[df['MaxMinRel'] == -5].index,
+        y = df[df['MaxMinRel'] == -5]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 5,
+            color = 'rgba(255, 0, 0, .9)'
+        ),
+        name = 'MinRel5'
+    )
+  
+    max5 = go.Scatter(
+        x = df[df['MaxMinRel'] == 5].index,
+        y = df[df['MaxMinRel'] == 5]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 5,
+            color = 'rgba(50, 205, 50, .9)'
+        ),
+        name = 'MaxRel5'
+    )
+
+    min10 = go.Scatter(
+        x = df[df['MaxMinRel'] == -10].index,
+        y = df[df['MaxMinRel'] == -10]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 15,
+            color = 'rgba(255, 0, 0, .4)'
+        ),
+        name = 'MinRel10'
+    )
+  
+    max10 = go.Scatter(
+        x = df[df['MaxMinRel'] == 10].index,
+        y = df[df['MaxMinRel'] == 10]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 15,
+            color = 'rgba(50, 205, 50, .4)'
+        ),
+        name = 'MaxRel10'
+    )
+
+    min20 = go.Scatter(
+        x = df[df['MaxMinRel'] == -20].index,
+        y = df[df['MaxMinRel'] == -20]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 25,
+            color = 'rgba(255, 0, 0, .2)'
+        ),
+        name = 'MinRel20'
+    )
+  
+    max20 = go.Scatter(
+        x = df[df['MaxMinRel'] == 20].index,
+        y = df[df['MaxMinRel'] == 20]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 25,
+            color = 'rgba(50, 205, 50, .2)'
+        ),
+        name = 'MaxRel20'
+    )
+
+    min60 = go.Scatter(
+        x = df[df['MaxMinRel'] == -60].index,
+        y = df[df['MaxMinRel'] == -60]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 35,
+            color = 'rgba(255, 0, 0, .1)'
+        ),
+        name = 'MinRel60'
+    )
+  
+    max60 = go.Scatter(
+        x = df[df['MaxMinRel'] == 60].index,
+        y = df[df['MaxMinRel'] == 60]['Close'],
+        mode = 'markers',
+        marker = dict(
+            size = 35,
+            color = 'rgba(50, 205, 50, .1)'
+        ),
+        name = 'MaxRel60'
+    )
+
+    ema5 = go.Scatter(
+        x = df.index,
+        y = df['EMA_5'],
+        mode = 'lines',
+        line = dict(color='blue'),
+        name = 'EMA5'
+    )
+
+    ema20 = go.Scatter(
+        x = df.index,
+        y = df['EMA_20'],
+        mode = 'lines',
+        line = dict(color='limegreen'),
+        name = 'EMA20'
+    )
+
+    ema50 = go.Scatter(
+        x = df.index,
+        y = df['EMA_50'],
+        mode = 'lines',
+        line = dict(color='orange'),
+        name = 'EMA50'
+    )
+    
+    ema100 = go.Scatter(
+        x = df.index,
+        y = df['EMA_100'],
+        mode = 'lines',
+        line = dict(color='red'),
+        name = 'EMA100'
+    )
+    
+    psar = go.Scatter(
+        x = df.index,
+        y = df['PSAR'], 
+        mode = 'markers',
+        marker = dict(
+            size = 2, 
+            color = 'rgba(0, 0, 0, .8)',  
+        ),
+        name = 'SAR Parabolico'
+    )
+    
+    stup = np.where(df['SUPERTd'] == 1, df['SUPERT'], np.nan)
+    stdown = np.where(df['SUPERTd'] == -1, df['SUPERT'], np.nan)
+    stupfill = np.where(df['SUPERTd'] == 1, df['SUPERT'], df['Close'])
+    stdownfill = np.where(df['SUPERTd'] == -1, df['SUPERT'], df['Close'])
+    
+    strendup = go.Scatter(
+        x = df.index,
+        y = stup, 
+        mode = 'lines',
+        line = dict(
+            color='limegreen',
+            width=1
+        ),
+        connectgaps = False,
+        name = 'SuperTrend'
+    )
+        
+    strendupfill = go.Scatter(
+        x = df.index,
+        y = stupfill, 
+        mode = 'lines',
+        line = dict(
+            color='rgba(0,0,0,0)',
+            width=1
+        ),
+        connectgaps = False,
+        fill='tonexty',   
+        fillcolor='rgba(50, 205, 50, 0.1)', 
+        showlegend=False,
+        name = 'SuperTrend'
+    )
+        
+    strenddown = go.Scatter(
+        x = df.index,
+        y = stdown, 
+        mode = 'lines',
+        line = dict(
+            color='red',
+            width=1
+        ),
+        connectgaps = False,
+        name = 'SuperTrend'
+    )
+    
+    strenddownfill = go.Scatter(
+        x = df.index,
+        y = stdownfill, 
+        mode = 'lines',
+        line = dict(
+            color='rgba(0,0,0,0)',
+            width=1
+        ),
+        fill='tonexty',   
+        fillcolor='rgba(255, 0, 0, 0.1)', 
+        connectgaps = False,
+        showlegend=False,
+        name = 'SuperTrend'
+    )
+    
+    layout = dict(xaxis = dict(autorange=True),
+                  yaxis = dict(title = 'Close', autorange=True),
+                  autosize = True,
+                  margin = go.layout.Margin(
+                      l=0,  # Sinistra
+                      r=0,  # Destra
+                      b=0,  # Basso
+                      t=50,  # Alto
+                      pad=0  # Padding
+                  ),
+                  legend = dict(traceorder = 'normal', bordercolor = 'black')
+    )
+        
+    fig = sp.make_subplots(rows=1, cols=1, shared_xaxes=True)
+    fig.update_layout(layout)
+
+# RIGA 1
+
+    fig.add_trace(close, row=1, col=1)
+    fig.add_trace(strendupfill, row=1, col=1)
+    fig.add_trace(strendup, row=1, col=1)
+    fig.add_trace(close2, row=1, col=1)
+    fig.add_trace(strenddownfill, row=1, col=1)
+    fig.add_trace(strenddown, row=1, col=1)
+#    fig.add_trace(min5, row=1, col=1); fig.add_trace(max5, row=1, col=1)
+#    fig.add_trace(min10, row=1, col=1); fig.add_trace(max10, row=1, col=1)
+    fig.add_trace(min20, row=1, col=1); fig.add_trace(max20, row=1, col=1)
+#    fig.add_trace(min60, row=1, col=1); fig.add_trace(max60, row=1, col=1)
+    fig.add_trace(ema5, row=1, col=1); fig.add_trace(ema20, row=1, col=1); fig.add_trace(ema50, row=1, col=1); fig.add_trace(ema100, row=1, col=1)
+    fig.add_trace(psar, row=1, col=1)
+    
+    return fig
+
+
+def grafico_indicatori(df): 
     close = go.Scatter(
         x = df.index,
         y = df['Close'],
@@ -533,4 +797,3 @@ def grafico_base(df):
     fig.add_trace(atr, row=3, col=2)
     
     return fig
-
