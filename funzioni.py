@@ -30,6 +30,7 @@ def crea_indicatori(df):
 #    vhf = ta.vhf(close=df['Close'], length=20)
     atr = ta.atr(high=df['High'], low=df['Low'], close=df['Close'])
 
+    '''
     ticksize = tick_size(df)
     ema5 = ema5.round(ticksize)
     ema20 = ema20.round(ticksize)    
@@ -40,18 +41,18 @@ def crea_indicatori(df):
     tsi = tsi.round(0)
     trix = trix.round(ticksize)
     atr = atr.round(ticksize)
-    
+    '''
     df = pd.concat([df, ema5, ema20, ema50, ema100, psar, macd, tsi, supertrend, adx, trix, vi, aroon, nvi, pvi, atr], axis=1)
 
     df = __rinomina_colonne(df)
-    df["SUPERT"] = df["SUPERT"].round(ticksize)
+    #df["SUPERT"] = df["SUPERT"].round(ticksize)
 
     df = __calcolo_drawdown_gain(df, 20)
 
-    df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3).round(ticksize)
-    df["DM_OSC"] = (df["DMP"] - df["DMN"]).round(ticksize)
-    df["VTX_OSC"] = (df["VTXP"] - df["VTXM"]).round(ticksize)
-    df["VI_OSC"] = (df["PVI"] - df["NVI"]).round(0)
+    df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3)#.round(ticksize)
+    df["DM_OSC"] = (df["DMP"] - df["DMN"])#.round(ticksize)
+    df["VTX_OSC"] = (df["VTXP"] - df["VTXM"])#.round(ticksize)
+    df["VI_OSC"] = (df["PVI"] - df["NVI"])#.round(0)
     
     df.drop(columns=["DMP", "DMN", "VTXP", "VTXM", "PVI", "NVI", "AROOND", "AROONU"], inplace=True, axis=1)
     
@@ -72,11 +73,11 @@ def crea_indicatori(df):
 
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True, axis=0)
-    
+    '''
     df["Perc_Max_High_Futuro_20d"] = df["Perc_Max_High_Futuro_20d"].round(0)
     df["Perc_Drawdown_20d"] = df["Perc_Drawdown_20d"].round(0)
     df["Adj Close"] = df["Adj Close"].round(ticksize)
-    
+    '''
     return df
 
 
