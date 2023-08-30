@@ -6,6 +6,15 @@ import plotly.graph_objs as go
 import plotly.offline as pyo
 import plotly.subplots as sp
 
+def converti_in_XY(features, target):
+    look_back = 5
+    X, Y = [], []
+    for i in range(look_back, len(features)):
+        X.append(features.iloc[i - look_back:i].values)
+        Y.append(target[i])
+    X, Y = np.array(X), np.array(Y)
+    return X, Y    
+
 def crea_indicatori(df):
     psar = ta.psar(high=df["High"], low=df["Low"], close=df["Close"], af0=0.02, af=0.02, max_af=0.2)
     psar["PSAR"] = psar["PSARl_0.02_0.2"].combine_first(psar["PSARs_0.02_0.2"])
