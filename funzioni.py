@@ -13,8 +13,7 @@ def features_e_target(df):
     target = (df["Perc_Max_High_Futuro_20d"] >= 20) & (df["Perc_Drawdown_20d"] <=5)
     return features, target
 
-def converti_in_XY(features, target):
-    look_back = 15
+def converti_in_XY(features, target, look_back):
     X, Y = [], []
     for i in range(look_back, len(features)):
         X.append(features.iloc[i - look_back:i].values)
