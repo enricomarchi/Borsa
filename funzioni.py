@@ -6,8 +6,15 @@ import plotly.graph_objs as go
 import plotly.offline as pyo
 import plotly.subplots as sp
 
+def features_e_target(df):
+    features = df.drop(columns=["Open", "High", "Low", "Close", "Adj Close", "Max_High_Futuro_20d", "Min_Low_Futuro_20d",
+                                "Drawdown_20d", "Perc_Max_High_Futuro_20d", "Perc_Drawdown_20d", "MaxMinRel", "guadagno_max_perc"
+                               ])        
+    target = (df["Perc_Max_High_Futuro_20d"] >= 20) & (df["Perc_Drawdown_20d"] <=5)
+    return features, target
+
 def converti_in_XY(features, target):
-    look_back = 5
+    look_back = 15
     X, Y = [], []
     for i in range(look_back, len(features)):
         X.append(features.iloc[i - look_back:i].values)
