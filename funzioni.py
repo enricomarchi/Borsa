@@ -6,11 +6,127 @@ import plotly.graph_objs as go
 import plotly.offline as pyo
 import plotly.subplots as sp
 
+from sklearn.utils.class_weight import compute_class_weight
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.metrics import Precision, Recall, AUC
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import LearningRateScheduler, EarlyStopping
+from keras.regularizers import l1, l2
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from imblearn.under_sampling import RandomUnderSampler
+
+def addestramento(model, features, target, learning_rate, batch_size, look_back):    
+    X, Y = converti_in_XY(features, target, look_back)
+    Y = np.where(Y, 1, 0)
+    #class_weights = compute_class_weight('balanced', classes=np.unique(Y), y=Y)
+    #class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
+    #print(class_weights)     
+
+    if model == 0:
+        model = keras.Sequential([
+            layers.LSTM(1000, input_shape=(X.shape[1], X.shape[2]), kernel_regularizer=l2(0.01)),# return_sequences=True),
+            #layers.Dropout(0.2),
+            #layers.LSTM(100, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 1
+            #layers.Dropout(0.2),
+            #layers.LSTM(50, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 2
+            #layers.Dropout(0.2),
+            #layers.LSTM(20, kernel_regularizer=l2(0.01)),  # Ultimo layer LSTM
+            #layers.Dropout(0.2),
+            layers.Dense(1, kernel_regularizer=l2(0.01), activation='sigmoid')
+        ])
+    custom_optimizer = Adam(learning_rate=learning_rate)
+
+    model.compile(
+        optimizer=custom_optimizer,
+        loss='binary_crossentropy',
+        metrics=[
+            Precision(name='precision'),
+            Recall(name='recall'),
+            AUC(name='auc'),
+            'accuracy'
+        ]
+    )
+
+    rus = RandomUnderSampler(sampling_strategy='auto')
+    scaler = StandardScaler()
+    n_samples, n_timesteps, n_features = X.shape
+    X = X.reshape((n_samples, n_timesteps * n_features)) # trasforma in 2D
+    X, Y = rus.fit_resample(X, Y) # undersampling
+    X = scaler.fit_transform(X) #standard scaler
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42) # split in set di train e di test
+    X_train = X_train.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
+    X_test = X_test.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
+    
+    early_stopping = EarlyStopping(monitor='val_precision', patience=20)
+    if batch_size == "max":
+        batch_size = len(X_train)
+    #n = len(X_train)
+    #weights = np.linspace(1, n, n)
+
+    model.fit(
+        X_train, Y_train,
+        epochs=200,
+        batch_size=batch_size,
+        #class_weight=class_weight_dict,
+        validation_data=(X_test, Y_test),
+        verbose=0,
+        shuffle=True,
+        #sample_weight=weights,
+        callbacks=[
+            early_stopping
+        ]
+    )
+
+    loss, precision, recall, auc, accuracy = model.evaluate(X_test, Y_test)
+    print(f"\033[42mLoss: {loss}, Precision: {precision}, Recall: {recall}, AUC: {auc}, Accuracy: {accuracy}\033[0m")
+    with open("result.txt", "a") as f:
+        f.write(f"Loss: {loss}, Precision: {precision}, Recall: {recall}, AUC: {auc}, Accuracy: {accuracy}\n")
+    return model
+
+
 def features_e_target(df):
-    features = df.drop(columns=["Open", "High", "Low", "Close", "Adj Close", "Max_High_Futuro_20d", "Min_Low_Futuro_20d",
-                                "Drawdown_20d", "Perc_Max_High_Futuro_20d", "Perc_Drawdown_20d", "MaxMinRel", "guadagno_max_perc"
-                               ])        
-    target = (df["Perc_Max_High_Futuro_20d"] >= 20) & (df["Perc_Drawdown_20d"] <=5)
+    features = df[[
+        #"Open", 
+        #"High", 
+        #"Low", 
+        #"Close", 
+        #"Adj Close", 
+        #"Volume",
+        "EMA_5",
+        "EMA_20",
+        "EMA_50",
+        "EMA_100",
+        "PSAR",
+        "PSARaf",
+        "PSARr",
+        "MACD",
+        "MACDh",
+        "MACDs",
+        "TSI",
+        "TSIs",
+        "SUPERT",
+        "SUPERTd",
+        "ADX",
+        "DM_OSC",
+        "TRIX",
+        "AROONOSC",
+        "ATR",
+        "VTX_OSC",
+        "VI_OSC",
+        #"Perc_Max_High_Futuro_20d", 
+        #"Perc_Drawdown_20d", 
+        #"Perc_Max_High_Futuro_50d", 
+        #"Perc_Drawdown_50d", 
+        #"Perc_Max_High_Futuro_100d", 
+        #"Perc_Drawdown_100d", 
+        #"max_gain",
+        #"max_drawdown",
+        #"HLC3",
+        #"MaxMinRel"
+    ]]        
+    target = (df["MaxMinRel"] < 0) & (df["max_gain"] > df["max_drawdown"])
     return features, target
 
 def converti_in_XY(features, target, look_back):
@@ -45,63 +161,32 @@ def crea_indicatori(df):
 #    vhf = ta.vhf(close=df['Close'], length=20)
     atr = ta.atr(high=df['High'], low=df['Low'], close=df['Close'])
 
-    '''
-    ticksize = tick_size(df)
-    ema5 = ema5.round(ticksize)
-    ema20 = ema20.round(ticksize)    
-    ema50 = ema50.round(ticksize)
-    ema100 = ema100.round(ticksize)
-    psar["PSAR"] = psar["PSAR"].round(ticksize)
-    macd = macd.round(ticksize)
-    tsi = tsi.round(0)
-    trix = trix.round(ticksize)
-    atr = atr.round(ticksize)
-    '''
     df = pd.concat([df, ema5, ema20, ema50, ema100, psar, macd, tsi, supertrend, adx, trix, vi, aroon, nvi, pvi, atr], axis=1)
 
     df = __rinomina_colonne(df)
-    #df["SUPERT"] = df["SUPERT"].round(ticksize)
 
     df = __calcolo_drawdown_gain(df, 20)
+    df = __calcolo_drawdown_gain(df, 50)
+    df = __calcolo_drawdown_gain(df, 100)
+    df["max_gain"] = df[["Perc_Max_High_Futuro_20d", "Perc_Max_High_Futuro_50d", "Perc_Max_High_Futuro_100d"]].max(axis=1)
+    df["max_drawdown"] = df[["Perc_Drawdown_20d", "Perc_Drawdown_50d", "Perc_Drawdown_100d"]].min(axis=1)
 
-    df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3)#.round(ticksize)
-    df["DM_OSC"] = (df["DMP"] - df["DMN"])#.round(ticksize)
-    df["VTX_OSC"] = (df["VTXP"] - df["VTXM"])#.round(ticksize)
-    df["VI_OSC"] = (df["PVI"] - df["NVI"])#.round(0)
+    df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3)
+    df["DM_OSC"] = (df["DMP"] - df["DMN"])
+    df["VTX_OSC"] = (df["VTXP"] - df["VTXM"])
+    df["VI_OSC"] = (df["PVI"] - df["NVI"])
     
     df.drop(columns=["DMP", "DMN", "VTXP", "VTXM", "PVI", "NVI", "AROOND", "AROONU"], inplace=True, axis=1)
     
     df["MaxMinRel"] = 0
     df = __trova_massimi_minimi(df, 20)   
+    df = __trova_massimi_minimi(df, 50)   
+    df = __trova_massimi_minimi(df, 100)   
     
-    # Determina il massimo guadagno fra un minimo di 20 gg e il massimo successivo
-    df['guadagno_max_perc'] = 0
-    current_index = None
-    current_close = None
-    for index, row in df.iterrows():
-        if row['MaxMinRel'] == -20:
-            current_index = index
-            current_close = row['Close']
-        elif row['MaxMinRel'] == 20 and current_index is not None:
-            df.at[current_index, 'guadagno_max_perc'] = ((row['Close'] - current_close) / current_close * 100).astype("int8")
-            current_index = None
-
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True, axis=0)
-    '''
-    df["Perc_Max_High_Futuro_20d"] = df["Perc_Max_High_Futuro_20d"].round(0)
-    df["Perc_Drawdown_20d"] = df["Perc_Drawdown_20d"].round(0)
-    df["Adj Close"] = df["Adj Close"].round(ticksize)
-    '''
+
     return df
-
-
-def tick_size(df):
-    #prezzo = df["Close"].iloc[-1]
-    #prezzo_str = str(prezzo)
-    #tick_size = len(prezzo_str.split('.')[1])
-    tick_size = 2
-    return tick_size
 
 
 def __trova_massimi_minimi(df, periodo):
@@ -189,6 +274,7 @@ def __calcolo_drawdown_gain(df, periodo):
     df[f"Perc_Max_High_Futuro_{periodo}d"] = ((df[f"Max_High_Futuro_{periodo}d"] - df["Open"]) / df["Open"]) * 100
     df[f"Perc_Drawdown_{periodo}d"] = ((df[f"Drawdown_{periodo}d"]) / df["Open"]) * 100 
     df[f"Perc_Drawdown_{periodo}d"] = df[f"Perc_Drawdown_{periodo}d"].where(df[f"Perc_Drawdown_{periodo}d"] > 0, 0)
+    df.drop(columns=[f"Max_High_Futuro_{periodo}d", f"Min_Low_Futuro_{periodo}d", f"Drawdown_{periodo}d"], axis=1, inplace=True)
     return df
 
 
