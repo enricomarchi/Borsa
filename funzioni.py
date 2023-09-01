@@ -59,7 +59,7 @@ def addestramento(model, features, target, learning_rate, batch_size, look_back)
     X_train = X_train.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
     X_test = X_test.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
     
-    early_stopping = EarlyStopping(monitor='val_precision', patience=20)
+    early_stopping = EarlyStopping(monitor='val_accuracy', patience=20)
     if batch_size == "max":
         batch_size = len(X_train)
     #n = len(X_train)
