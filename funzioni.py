@@ -26,14 +26,14 @@ def addestramento(model, features, target, learning_rate, batch_size, look_back)
 
     if model == 0:
         model = keras.Sequential([
-            layers.LSTM(1000, input_shape=(X.shape[1], X.shape[2]), kernel_regularizer=l2(0.01)),# return_sequences=True),
-            #layers.Dropout(0.2),
-            #layers.LSTM(100, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 1
-            #layers.Dropout(0.2),
-            #layers.LSTM(50, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 2
-            #layers.Dropout(0.2),
-            #layers.LSTM(20, kernel_regularizer=l2(0.01)),  # Ultimo layer LSTM
-            #layers.Dropout(0.2),
+            layers.LSTM(1000, input_shape=(X.shape[1], X.shape[2]), kernel_regularizer=l2(0.01), return_sequences=True),
+            layers.Dropout(0.2),
+            layers.LSTM(500, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 1
+            layers.Dropout(0.2),
+            layers.LSTM(100, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 2
+            layers.Dropout(0.2),
+            layers.LSTM(50, kernel_regularizer=l2(0.01)),  # Ultimo layer LSTM
+            layers.Dropout(0.2),
             layers.Dense(1, kernel_regularizer=l2(0.01), activation='sigmoid')
         ])
     custom_optimizer = Adam(learning_rate=learning_rate)
@@ -71,7 +71,7 @@ def addestramento(model, features, target, learning_rate, batch_size, look_back)
         batch_size=batch_size,
         #class_weight=class_weight_dict,
         validation_data=(X_test, Y_test),
-        verbose=0,
+        verbose=1,
         shuffle=True,
         #sample_weight=weights,
         callbacks=[
@@ -115,18 +115,9 @@ def features_e_target(df):
         "ATR",
         "VTX_OSC",
         "VI_OSC",
-        #"Perc_Max_High_Futuro_20d", 
-        #"Perc_Drawdown_20d", 
-        #"Perc_Max_High_Futuro_50d", 
-        #"Perc_Drawdown_50d", 
-        #"Perc_Max_High_Futuro_100d", 
-        #"Perc_Drawdown_100d", 
-        #"max_gain",
-        #"max_drawdown",
         #"HLC3",
-        #"MaxMinRel"
     ]]        
-    target = (df["MaxMinRel"] < 0) & (df["max_gain"] > df["max_drawdown"])
+    target = (df["incrocio_passato_verde_gialla_10d"] == 1) & (df["perc_EMA_5_20d"] > 10)
     return features, target
 
 def converti_in_XY(features, target, look_back):
@@ -171,6 +162,11 @@ def crea_indicatori(df):
     df["max_gain"] = df[["Perc_Max_High_Futuro_20d", "Perc_Max_High_Futuro_50d", "Perc_Max_High_Futuro_100d"]].max(axis=1)
     df["max_drawdown"] = df[["Perc_Drawdown_20d", "Perc_Drawdown_50d", "Perc_Drawdown_100d"]].min(axis=1)
 
+    df['EMA_5_20d'] = df['EMA_5'].shift(-20)
+    df['perc_EMA_5_20d'] = ((df['EMA_5_20d'] - df['EMA_5']) / df['EMA_5']) * 100
+    df['incrocio_verde_gialla'] = (ta.cross(df['EMA_20'], df['EMA_50'], above=True)).astype("int8")
+    df["incrocio_passato_verde_gialla_10d"] = df["incrocio_verde_gialla"].rolling(10).sum()
+    
     df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3)
     df["DM_OSC"] = (df["DMP"] - df["DMN"])
     df["VTX_OSC"] = (df["VTXP"] - df["VTXM"])
@@ -512,7 +508,7 @@ def grafico_base(df):
     fig.add_trace(strenddown, row=1, col=1)
 #    fig.add_trace(min5, row=1, col=1); fig.add_trace(max5, row=1, col=1)
 #    fig.add_trace(min10, row=1, col=1); fig.add_trace(max10, row=1, col=1)
-    fig.add_trace(min20, row=1, col=1); fig.add_trace(max20, row=1, col=1)
+#    fig.add_trace(min20, row=1, col=1); fig.add_trace(max20, row=1, col=1)
 #    fig.add_trace(min60, row=1, col=1); fig.add_trace(max60, row=1, col=1)
     fig.add_trace(ema5, row=1, col=1); fig.add_trace(ema20, row=1, col=1); fig.add_trace(ema50, row=1, col=1); fig.add_trace(ema100, row=1, col=1)
     fig.add_trace(psar, row=1, col=1)
