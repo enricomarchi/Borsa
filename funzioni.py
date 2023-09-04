@@ -17,22 +17,24 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from imblearn.under_sampling import RandomUnderSampler
 
-def addestramento(model, features, target, learning_rate, batch_size, look_back):    
+def addestramento_classificazione(model, features, target, learning_rate, batch_size, look_back):    
     X, Y = converti_in_XY(features, target, look_back)
     Y = np.where(Y, 1, 0)
-    #class_weights = compute_class_weight('balanced', classes=np.unique(Y), y=Y)
-    #class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
-    #print(class_weights)     
+    class_weights = compute_class_weight('balanced', classes=np.unique(Y), y=Y)
+    class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
+    print(class_weights)     
 
     if model == 0:
         model = keras.Sequential([
-            layers.LSTM(1000, input_shape=(X.shape[1], X.shape[2]), kernel_regularizer=l2(0.01), return_sequences=True),
+            layers.LSTM(256, input_shape=(X.shape[1], X.shape[2]), kernel_regularizer=l2(0.01), return_sequences=True),
             layers.Dropout(0.2),
-            layers.LSTM(500, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 1
+            #layers.LSTM(500, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 1
+            #layers.Dropout(0.2),
+            #layers.LSTM(128, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 2
+            #layers.Dropout(0.2),
+            layers.LSTM(128, kernel_regularizer=l2(0.01)),  # Ultimo layer LSTM
             layers.Dropout(0.2),
-            layers.LSTM(100, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 2
-            layers.Dropout(0.2),
-            layers.LSTM(50, kernel_regularizer=l2(0.01)),  # Ultimo layer LSTM
+            layers.Dense(50, kernel_regularizer=l2(0.01)),  
             layers.Dropout(0.2),
             layers.Dense(1, kernel_regularizer=l2(0.01), activation='sigmoid')
         ])
@@ -49,17 +51,17 @@ def addestramento(model, features, target, learning_rate, batch_size, look_back)
         ]
     )
 
-    rus = RandomUnderSampler(sampling_strategy='auto')
+    #rus = RandomUnderSampler(sampling_strategy='auto')
     scaler = StandardScaler()
     n_samples, n_timesteps, n_features = X.shape
     X = X.reshape((n_samples, n_timesteps * n_features)) # trasforma in 2D
-    X, Y = rus.fit_resample(X, Y) # undersampling
+    #X, Y = rus.fit_resample(X, Y) # undersampling
     X = scaler.fit_transform(X) #standard scaler
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42) # split in set di train e di test
     X_train = X_train.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
     X_test = X_test.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
     
-    early_stopping = EarlyStopping(monitor='val_accuracy', patience=20)
+    early_stopping = EarlyStopping(monitor='val_accuracy', patience=10)
     if batch_size == "max":
         batch_size = len(X_train)
     #n = len(X_train)
@@ -67,12 +69,12 @@ def addestramento(model, features, target, learning_rate, batch_size, look_back)
 
     model.fit(
         X_train, Y_train,
-        epochs=200,
+        epochs=100,
         batch_size=batch_size,
-        #class_weight=class_weight_dict,
+        class_weight=class_weight_dict,
         validation_data=(X_test, Y_test),
         verbose=1,
-        shuffle=True,
+        shuffle=False,
         #sample_weight=weights,
         callbacks=[
             early_stopping
@@ -86,18 +88,105 @@ def addestramento(model, features, target, learning_rate, batch_size, look_back)
     return model
 
 
-def features_e_target(df):
+def features_e_target_classificazione(df):
     features = df[[
-        #"Open", 
-        #"High", 
-        #"Low", 
-        #"Close", 
+        "Open", 
+        "High", 
+        "Low", 
+        "Close", 
         #"Adj Close", 
         #"Volume",
-        "EMA_5",
+        #"EMA_5",
+        #"EMA_20",
+        #"EMA_50",
+        #"EMA_100",
+        #"PSAR",
+        #"PSARaf",
+        #"PSARr",
+        #"MACD",
+        #"MACDh",
+        #"MACDs",
+        #"TSI",
+        #"TSIs",
+        #"SUPERT",
+        #"SUPERTd",
+        #"ADX",
+        #"DM_OSC",
+        #"TRIX",
+        #"AROONOSC",
+        #"ATR",
+        #"VTX_OSC",
+        #"VI_OSC",
+        #"HLC3",
+    ]]        
+    target = (df["perc_Close_20d"] >= 30) & (df["Perc_Drawdown_20d"] < 10)
+    return features, target
+
+
+def addestramento_regressione(model, features, target, learning_rate, batch_size, look_back):    
+    X, Y = converti_in_XY(features, target, look_back)
+
+    if model == 0:
+        model = keras.Sequential([
+            layers.LSTM(50, input_shape=(X.shape[1], X.shape[2]), return_sequences=True),
+            #layers.Dropout(0.2),
+            layers.LSTM(50,  return_sequences=False),
+            #layers.Dropout(0.2),
+            #layers.Dense(25),
+            #layers.Dropout(0.2),
+            layers.Dense(1)  # Linear activation (default)
+        ])
+
+    custom_optimizer = Adam(learning_rate=learning_rate)
+
+    model.compile(
+        optimizer=custom_optimizer,
+        loss='mean_squared_error',
+    )
+
+    scaler = StandardScaler()
+    n_samples, n_timesteps, n_features = X.shape
+    X = X.reshape((n_samples, n_timesteps * n_features))
+    #X = scaler.fit_transform(X)
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+    X_train = X_train.reshape((-1, n_timesteps, n_features))
+    X_test = X_test.reshape((-1, n_timesteps, n_features))
+
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10)  # Changed from 'val_accuracy' to 'val_loss'
+
+    if batch_size == "max":
+        batch_size = len(X_train)
+
+    model.fit(
+        X_train, Y_train,
+        epochs=50,
+        batch_size=batch_size,
+        validation_data=(X_test, Y_test),
+        verbose=1,
+        shuffle=False,
+        callbacks=[
+            early_stopping
+        ]
+    )
+
+    loss = model.evaluate(X_test, Y_test)  # Changed metrics
+    print(f"\033[42mLoss: {loss}\033[0m")  # Changed metrics
+    
+    return model, scaler
+
+
+def features_e_target_regressione(df):
+    features = df[[
+        "Open", 
+        "High", 
+        "Low", 
+        "Close", 
+        #"Adj Close", 
+        "Volume",
+        #"EMA_5",
         "EMA_20",
         "EMA_50",
-        "EMA_100",
+        #"EMA_100",
         "PSAR",
         "PSARaf",
         "PSARr",
@@ -111,14 +200,15 @@ def features_e_target(df):
         "ADX",
         "DM_OSC",
         "TRIX",
-        "AROONOSC",
+        #"AROONOSC",
         "ATR",
-        "VTX_OSC",
-        "VI_OSC",
-        #"HLC3",
+        #"VTX_OSC",
+        #"VI_OSC",
+        "HLC3",
     ]]        
-    target = (df["incrocio_passato_verde_gialla_10d"] == 1) & (df["perc_EMA_5_20d"] > 10)
+    target = df["Close_1d"]
     return features, target
+
 
 def converti_in_XY(features, target, look_back):
     X, Y = [], []
@@ -163,7 +253,10 @@ def crea_indicatori(df):
     df["max_drawdown"] = df[["Perc_Drawdown_20d", "Perc_Drawdown_50d", "Perc_Drawdown_100d"]].min(axis=1)
 
     df['EMA_5_20d'] = df['EMA_5'].shift(-20)
+    df['Close_20d'] = df['Close'].shift(-20)
+    df['Close_1d'] = df['Close'].shift(-1)
     df['perc_EMA_5_20d'] = ((df['EMA_5_20d'] - df['EMA_5']) / df['EMA_5']) * 100
+    df['perc_Close_20d'] = ((df['Close_20d'] - df['Close']) / df['Close']) * 100
     df['incrocio_verde_gialla'] = (ta.cross(df['EMA_20'], df['EMA_50'], above=True)).astype("int8")
     df["incrocio_passato_verde_gialla_10d"] = df["incrocio_verde_gialla"].rolling(10).sum()
     
