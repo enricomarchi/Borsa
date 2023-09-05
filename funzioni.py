@@ -14,6 +14,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import LearningRateScheduler, EarlyStopping
 from keras.regularizers import l1, l2
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from imblearn.under_sampling import RandomUnderSampler
 
@@ -144,11 +145,19 @@ def addestramento_regressione(model, features, target, learning_rate, batch_size
         loss='mean_squared_error',
     )
 
-    scaler = StandardScaler()
+    X_scaler = MinMaxScaler()
+    Y_scaler = MinMaxScaler()
     n_samples, n_timesteps, n_features = X.shape
     X = X.reshape((n_samples, n_timesteps * n_features))
-    #X = scaler.fit_transform(X)
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+    
+    #X_scaler.fit(X_train)
+    #Y_scaler.fit(Y_train.reshape(-1, 1))
+    #X_train = X_scaler.transform(X_train)
+    #X_test = X_scaler.transform(X_test)
+    #Y_train = Y_scaler.transform(Y_train.reshape(-1, 1))    
+    #Y_test = Y_scaler.transform(Y_test.reshape(-1, 1))
+    
     X_train = X_train.reshape((-1, n_timesteps, n_features))
     X_test = X_test.reshape((-1, n_timesteps, n_features))
 
@@ -159,7 +168,7 @@ def addestramento_regressione(model, features, target, learning_rate, batch_size
 
     model.fit(
         X_train, Y_train,
-        epochs=50,
+        epochs=5,
         batch_size=batch_size,
         validation_data=(X_test, Y_test),
         verbose=1,
@@ -172,7 +181,7 @@ def addestramento_regressione(model, features, target, learning_rate, batch_size
     loss = model.evaluate(X_test, Y_test)  # Changed metrics
     print(f"\033[42mLoss: {loss}\033[0m")  # Changed metrics
     
-    return model, scaler
+    return model, X_scaler, Y_scaler
 
 
 def features_e_target_regressione(df):
@@ -182,29 +191,29 @@ def features_e_target_regressione(df):
         "Low", 
         "Close", 
         #"Adj Close", 
-        "Volume",
+        #"Volume",
         #"EMA_5",
         "EMA_20",
         "EMA_50",
         #"EMA_100",
-        "PSAR",
-        "PSARaf",
-        "PSARr",
-        "MACD",
-        "MACDh",
-        "MACDs",
-        "TSI",
-        "TSIs",
-        "SUPERT",
-        "SUPERTd",
-        "ADX",
-        "DM_OSC",
-        "TRIX",
+        #"PSAR",
+        #"PSARaf",
+        #"PSARr",
+        #"MACD",
+        #"MACDh",
+        #"MACDs",
+        #"TSI",
+        #"TSIs",
+        #"SUPERT",
+        #"SUPERTd",
+        #"ADX",
+        #"DM_OSC",
+        #"TRIX",
         #"AROONOSC",
-        "ATR",
+        #"ATR",
         #"VTX_OSC",
         #"VI_OSC",
-        "HLC3",
+        #"HLC3",
     ]]        
     target = df["Close_1d"]
     return features, target
