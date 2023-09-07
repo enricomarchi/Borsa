@@ -1,6 +1,7 @@
 import plotly.graph_objs as go
 import plotly.offline as pyo
 import plotly.subplots as sp
+import yfinance as yf
 
 def grafico(risultato):
     target = go.Scatter(
