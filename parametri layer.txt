@@ -1,0 +1,90 @@
+Layer 0: LSTM
+  name: lstm
+  trainable: True
+  dtype: float32
+  return_sequences: True
+  return_state: False
+  go_backwards: False
+  stateful: False
+  unroll: False
+  time_major: False
+  units: 50
+  activation: tanh
+  recurrent_activation: sigmoid
+  use_bias: True
+  kernel_initializer: {'module': 'keras.initializers', 'class_name': 'RandomUniform', 'config': {'minval': -0.05, 'maxval': 0.05, 'seed': None}, 'registered_name': None}
+  recurrent_initializer: {'module': 'keras.initializers', 'class_name': 'GlorotUniform', 'config': {'seed': None}, 'registered_name': None}
+  bias_initializer: {'module': 'keras.initializers', 'class_name': 'Zeros', 'config': {}, 'registered_name': None}
+  unit_forget_bias: True
+  kernel_regularizer: None
+  recurrent_regularizer: None
+  bias_regularizer: None
+  activity_regularizer: None
+  kernel_constraint: None
+  recurrent_constraint: None
+  bias_constraint: None
+  dropout: 0.0
+  recurrent_dropout: 0.0
+  implementation: 2
+
+
+Layer 1: LSTM
+  name: lstm_1
+  trainable: True
+  dtype: float32
+  return_sequences: False
+  return_state: False
+  go_backwards: False
+  stateful: False
+  unroll: False
+  time_major: False
+  units: 50
+  activation: tanh
+  recurrent_activation: sigmoid
+  use_bias: True
+  kernel_initializer: {'module': 'keras.initializers', 'class_name': 'RandomUniform', 'config': {'minval': -0.05, 'maxval': 0.05, 'seed': None}, 'registered_name': None}
+  recurrent_initializer: {'module': 'keras.initializers', 'class_name': 'GlorotUniform', 'config': {'seed': None}, 'registered_name': None}
+  bias_initializer: {'module': 'keras.initializers', 'class_name': 'Zeros', 'config': {}, 'registered_name': None}
+  unit_forget_bias: True
+  kernel_regularizer: None
+  recurrent_regularizer: None
+  bias_regularizer: None
+  activity_regularizer: None
+  kernel_constraint: None
+  recurrent_constraint: None
+  bias_constraint: None
+  dropout: 0.0
+  recurrent_dropout: 0.0
+  implementation: 2
+
+
+Layer 2: Dense
+  name: dense
+  trainable: True
+  dtype: float32
+  units: 64
+  activation: relu
+  use_bias: True
+  kernel_initializer: {'module': 'keras.initializers', 'class_name': 'GlorotUniform', 'config': {'seed': None}, 'registered_name': None}
+  bias_initializer: {'module': 'keras.initializers', 'class_name': 'Zeros', 'config': {}, 'registered_name': None}
+  kernel_regularizer: None
+  bias_regularizer: None
+  activity_regularizer: None
+  kernel_constraint: None
+  bias_constraint: None
+
+
+Layer 3: Dense
+  name: dense_1
+  trainable: True
+  dtype: float32
+  units: 1
+  activation: linear
+  use_bias: True
+  kernel_initializer: {'module': 'keras.initializers', 'class_name': 'GlorotUniform', 'config': {'seed': None}, 'registered_name': None}
+  bias_initializer: {'module': 'keras.initializers', 'class_name': 'Zeros', 'config': {}, 'registered_name': None}
+  kernel_regularizer: None
+  bias_regularizer: None
+  activity_regularizer: None
+  kernel_constraint: None
+  bias_constraint: None

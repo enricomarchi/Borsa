@@ -1,0 +1,2 @@
+scaler,epochs,batch_size,learning_rate,n_timesteps,giorni_previsione,seed,Loss,MAE
+PowerTransformer,50,32,0.001,30,1,10,0.019075710326433182,0.10336502641439438

@@ -18,6 +18,12 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from imblearn.under_sampling import RandomUnderSampler
 
+def pct_change(valore_iniziale, valore_finale):
+    try:
+        return ((valore_finale - valore_iniziale) / valore_iniziale) * 100
+    except ZeroDivisionError:
+        return None
+
 def addestramento_classificazione(model, features, target, learning_rate, batch_size, look_back):    
     X, Y = converti_in_XY(features, target, look_back)
     Y = np.where(Y, 1, 0)
