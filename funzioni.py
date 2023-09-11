@@ -288,7 +288,7 @@ def crea_indicatori(df):
     df = __trova_massimi_minimi(df, 100)   
     
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    df.dropna(inplace=True, axis=0)
+    #df.dropna(inplace=True, axis=0)
 
     return df
 
