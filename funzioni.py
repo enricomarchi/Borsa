@@ -261,31 +261,31 @@ def crea_indicatori(df):
 
     df = __rinomina_colonne(df)
 
-    df = __calcolo_drawdown_gain(df, 20)
-    df = __calcolo_drawdown_gain(df, 50)
-    df = __calcolo_drawdown_gain(df, 100)
-    df["max_gain"] = df[["Perc_Max_High_Futuro_20d", "Perc_Max_High_Futuro_50d", "Perc_Max_High_Futuro_100d"]].max(axis=1)
-    df["max_drawdown"] = df[["Perc_Drawdown_20d", "Perc_Drawdown_50d", "Perc_Drawdown_100d"]].min(axis=1)
+    #df = __calcolo_drawdown_gain(df, 20)
+    #df = __calcolo_drawdown_gain(df, 50)
+    #df = __calcolo_drawdown_gain(df, 100)
+    #df["max_gain"] = df[["Perc_Max_High_Futuro_20d", "Perc_Max_High_Futuro_50d", "Perc_Max_High_Futuro_100d"]].max(axis=1)
+    #df["max_drawdown"] = df[["Perc_Drawdown_20d", "Perc_Drawdown_50d", "Perc_Drawdown_100d"]].min(axis=1)
 
-    df['EMA_5_20d'] = df['EMA_5'].shift(-20)
-    df['Close_20d'] = df['Close'].shift(-20)
-    df['Close_1d'] = df['Close'].shift(-1)
-    df['perc_EMA_5_20d'] = ((df['EMA_5_20d'] - df['EMA_5']) / df['EMA_5']) * 100
-    df['perc_Close_20d'] = ((df['Close_20d'] - df['Close']) / df['Close']) * 100
-    df['incrocio_verde_gialla'] = (ta.cross(df['EMA_20'], df['EMA_50'], above=True)).astype("int8")
-    df["incrocio_passato_verde_gialla_10d"] = df["incrocio_verde_gialla"].rolling(10).sum()
+    #df['EMA_5_20d'] = df['EMA_5'].shift(-20)
+    #df['Close_20d'] = df['Close'].shift(-20)
+    #df['Close_1d'] = df['Close'].shift(-1)
+    #df['perc_EMA_5_20d'] = ((df['EMA_5_20d'] - df['EMA_5']) / df['EMA_5']) * 100
+    #df['perc_Close_20d'] = ((df['Close_20d'] - df['Close']) / df['Close']) * 100
+    #df['incrocio_verde_gialla'] = (ta.cross(df['EMA_20'], df['EMA_50'], above=True)).astype("int8")
+    #df["incrocio_passato_verde_gialla_10d"] = df["incrocio_verde_gialla"].rolling(10).sum()
     
-    df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3)
+    #df['HLC3'] = ((df['High'] + df['Low'] + df['Close']) / 3)
     df["DM_OSC"] = (df["DMP"] - df["DMN"])
     df["VTX_OSC"] = (df["VTXP"] - df["VTXM"])
     df["VI_OSC"] = (df["PVI"] - df["NVI"])
     
     df.drop(columns=["DMP", "DMN", "VTXP", "VTXM", "PVI", "NVI", "AROOND", "AROONU"], inplace=True, axis=1)
     
-    df["MaxMinRel"] = 0
-    df = __trova_massimi_minimi(df, 20)   
-    df = __trova_massimi_minimi(df, 50)   
-    df = __trova_massimi_minimi(df, 100)   
+    #df["MaxMinRel"] = 0
+    #df = __trova_massimi_minimi(df, 20)   
+    #df = __trova_massimi_minimi(df, 50)   
+    #df = __trova_massimi_minimi(df, 100)   
     
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     #df.dropna(inplace=True, axis=0)
