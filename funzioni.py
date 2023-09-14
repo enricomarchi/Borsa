@@ -6,232 +6,32 @@ import plotly.graph_objs as go
 import plotly.offline as pyo
 import plotly.subplots as sp
 
-from sklearn.utils.class_weight import compute_class_weight
-from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.metrics import Precision, Recall, AUC
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import LearningRateScheduler, EarlyStopping
-from keras.regularizers import l1, l2
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-from imblearn.under_sampling import RandomUnderSampler
-
 def pct_change(valore_iniziale, valore_finale):
     try:
         return ((valore_finale - valore_iniziale) / valore_iniziale) * 100
     except ZeroDivisionError:
         return None
 
-def addestramento_classificazione(model, features, target, learning_rate, batch_size, look_back):    
-    X, Y = converti_in_XY(features, target, look_back)
-    Y = np.where(Y, 1, 0)
-    class_weights = compute_class_weight('balanced', classes=np.unique(Y), y=Y)
-    class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
-    print(class_weights)     
+def to_XY(dati_ticker, elenco_features, elenco_targets, n_timesteps, giorni_previsione, addestramento=True):
+    new_dates = pd.bdate_range(start=dati_ticker.index[-1] + pd.Timedelta(days=1), periods=giorni_previsione)
+    df_new = pd.DataFrame(index=new_dates)
+    dati_ticker = pd.concat([dati_ticker, df_new])
 
-    if model == 0:
-        model = keras.Sequential([
-            layers.LSTM(256, input_shape=(X.shape[1], X.shape[2]), kernel_regularizer=l2(0.01), return_sequences=True),
-            layers.Dropout(0.2),
-            #layers.LSTM(500, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 1
-            #layers.Dropout(0.2),
-            #layers.LSTM(128, kernel_regularizer=l2(0.01), return_sequences=True),  # Nuovo layer LSTM 2
-            #layers.Dropout(0.2),
-            layers.LSTM(128, kernel_regularizer=l2(0.01)),  # Ultimo layer LSTM
-            layers.Dropout(0.2),
-            layers.Dense(50, kernel_regularizer=l2(0.01)),  
-            layers.Dropout(0.2),
-            layers.Dense(1, kernel_regularizer=l2(0.01), activation='sigmoid')
-        ])
-    custom_optimizer = Adam(learning_rate=learning_rate)
+    features = dati_ticker[elenco_features]
+    targets = dati_ticker[elenco_targets]
 
-    model.compile(
-        optimizer=custom_optimizer,
-        loss='binary_crossentropy',
-        metrics=[
-            Precision(name='precision'),
-            Recall(name='recall'),
-            AUC(name='auc'),
-            'accuracy'
-        ]
-    )
-
-    #rus = RandomUnderSampler(sampling_strategy='auto')
-    scaler = StandardScaler()
-    n_samples, n_timesteps, n_features = X.shape
-    X = X.reshape((n_samples, n_timesteps * n_features)) # trasforma in 2D
-    #X, Y = rus.fit_resample(X, Y) # undersampling
-    X = scaler.fit_transform(X) #standard scaler
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42) # split in set di train e di test
-    X_train = X_train.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
-    X_test = X_test.reshape((-1, n_timesteps, n_features)) # ripristina in 3D
-    
-    early_stopping = EarlyStopping(monitor='val_accuracy', patience=10)
-    if batch_size == "max":
-        batch_size = len(X_train)
-    #n = len(X_train)
-    #weights = np.linspace(1, n, n)
-
-    model.fit(
-        X_train, Y_train,
-        epochs=100,
-        batch_size=batch_size,
-        class_weight=class_weight_dict,
-        validation_data=(X_test, Y_test),
-        verbose=1,
-        shuffle=False,
-        #sample_weight=weights,
-        callbacks=[
-            early_stopping
-        ]
-    )
-
-    loss, precision, recall, auc, accuracy = model.evaluate(X_test, Y_test)
-    print(f"\033[42mLoss: {loss}, Precision: {precision}, Recall: {recall}, AUC: {auc}, Accuracy: {accuracy}\033[0m")
-    with open("result.txt", "a") as f:
-        f.write(f"Loss: {loss}, Precision: {precision}, Recall: {recall}, AUC: {auc}, Accuracy: {accuracy}\n")
-    return model
-
-
-def features_e_target_classificazione(df):
-    features = df[[
-        "Open", 
-        "High", 
-        "Low", 
-        "Close", 
-        #"Adj Close", 
-        #"Volume",
-        #"EMA_5",
-        #"EMA_20",
-        #"EMA_50",
-        #"EMA_100",
-        #"PSAR",
-        #"PSARaf",
-        #"PSARr",
-        #"MACD",
-        #"MACDh",
-        #"MACDs",
-        #"TSI",
-        #"TSIs",
-        #"SUPERT",
-        #"SUPERTd",
-        #"ADX",
-        #"DM_OSC",
-        #"TRIX",
-        #"AROONOSC",
-        #"ATR",
-        #"VTX_OSC",
-        #"VI_OSC",
-        #"HLC3",
-    ]]        
-    target = (df["perc_Close_20d"] >= 30) & (df["Perc_Drawdown_20d"] < 10)
-    return features, target
-
-
-def addestramento_regressione(model, features, target, learning_rate, batch_size, look_back):    
-    X, Y = converti_in_XY(features, target, look_back)
-
-    if model == 0:
-        model = keras.Sequential([
-            layers.LSTM(50, input_shape=(X.shape[1], X.shape[2]), return_sequences=True),
-            #layers.Dropout(0.2),
-            layers.LSTM(50,  return_sequences=False),
-            #layers.Dropout(0.2),
-            #layers.Dense(25),
-            #layers.Dropout(0.2),
-            layers.Dense(1)  # Linear activation (default)
-        ])
-
-    custom_optimizer = Adam(learning_rate=learning_rate)
-
-    model.compile(
-        optimizer=custom_optimizer,
-        loss='mean_squared_error',
-    )
-
-    X_scaler = MinMaxScaler()
-    Y_scaler = MinMaxScaler()
-    n_samples, n_timesteps, n_features = X.shape
-    X = X.reshape((n_samples, n_timesteps * n_features))
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
-    
-    #X_scaler.fit(X_train)
-    #Y_scaler.fit(Y_train.reshape(-1, 1))
-    #X_train = X_scaler.transform(X_train)
-    #X_test = X_scaler.transform(X_test)
-    #Y_train = Y_scaler.transform(Y_train.reshape(-1, 1))    
-    #Y_test = Y_scaler.transform(Y_test.reshape(-1, 1))
-    
-    X_train = X_train.reshape((-1, n_timesteps, n_features))
-    X_test = X_test.reshape((-1, n_timesteps, n_features))
-
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10)  # Changed from 'val_accuracy' to 'val_loss'
-
-    if batch_size == "max":
-        batch_size = len(X_train)
-
-    model.fit(
-        X_train, Y_train,
-        epochs=5,
-        batch_size=batch_size,
-        validation_data=(X_test, Y_test),
-        verbose=1,
-        shuffle=False,
-        callbacks=[
-            early_stopping
-        ]
-    )
-
-    loss = model.evaluate(X_test, Y_test)  # Changed metrics
-    print(f"\033[42mLoss: {loss}\033[0m")  # Changed metrics
-    
-    return model, X_scaler, Y_scaler
-
-
-def features_e_target_regressione(df):
-    features = df[[
-        "Open", 
-        "High", 
-        "Low", 
-        "Close", 
-        #"Adj Close", 
-        #"Volume",
-        #"EMA_5",
-        "EMA_20",
-        "EMA_50",
-        #"EMA_100",
-        #"PSAR",
-        #"PSARaf",
-        #"PSARr",
-        #"MACD",
-        #"MACDh",
-        #"MACDs",
-        #"TSI",
-        #"TSIs",
-        #"SUPERT",
-        #"SUPERTd",
-        #"ADX",
-        #"DM_OSC",
-        #"TRIX",
-        #"AROONOSC",
-        #"ATR",
-        #"VTX_OSC",
-        #"VI_OSC",
-        #"HLC3",
-    ]]        
-    target = df["Close_1d"]
-    return features, target
-
-
-def converti_in_XY(features, target, look_back):
+    if addestramento:
+        i_tot = len(features) - giorni_previsione*2
+    else:
+        i_tot = len(features) - giorni_previsione
     X, Y = [], []
-    for i in range(look_back, len(features)):
-        X.append(features.iloc[i - look_back:i].values)
-        Y.append(target[i])
-    X, Y = np.array(X), np.array(Y)
-    return X, Y    
+    for i in range(n_timesteps - 1, i_tot):
+        X.append(features.iloc[i - (n_timesteps - 1):i + 1])
+        Y.append(targets.iloc[i + 1:i + 1 + giorni_previsione])
+    
+    idx = dati_ticker.index[n_timesteps - 1:i_tot]
+    
+    return idx, np.array(X), np.array(Y)
 
 def crea_indicatori(df):
     psar = ta.psar(high=df["High"], low=df["Low"], close=df["Close"], af0=0.02, af=0.02, max_af=0.2)
