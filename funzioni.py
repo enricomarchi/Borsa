@@ -47,7 +47,7 @@ def crea_indicatori(df):
     ema100 = ta.ema(close=df["Close"], length=100)
     adx = ta.adx(high=df["High"], low=df["Low"], close=df["Close"], length=20)
 #    roc = ta.roc(close=df["Close"], length=10)
-#    cmf = ta.cmf(high=df["High"], low=df["Low"], close=df["Close"], volume=df['Volume'], length=10)
+    cmf = ta.cmf(high=df["High"], low=df["Low"], close=df["Close"], volume=df['Volume'], length=10)
     trix = ta.trix(close=df['Close'], length=18)
 #    klinger = ta.kvo(high=df["High"], low=df["Low"], close=df["Close"], volume=df['Volume'], short=34, long=55)
     vi = ta.vortex(high=df['High'], low=df['Low'], close=df['Close'], length=20)
