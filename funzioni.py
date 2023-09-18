@@ -56,8 +56,9 @@ def crea_indicatori(df):
     pvi = ta.pvi(close=df['Close'], volume=df['Volume'])
 #    vhf = ta.vhf(close=df['Close'], length=20)
     atr = ta.atr(high=df['High'], low=df['Low'], close=df['Close'])
+    candele = ta.cdl_pattern(open_=df["Open"], high=df["High"], low=df["Low"], close=df["Close"])
 
-    df = pd.concat([df, ema5, ema20, ema50, ema100, psar, macd, tsi, supertrend, adx, trix, vi, aroon, nvi, pvi, atr], axis=1)
+    df = pd.concat([df, ema5, ema20, ema50, ema100, psar, macd, tsi, supertrend, adx, trix, vi, aroon, nvi, pvi, atr, candele], axis=1)
 
     df = __rinomina_colonne(df)
 
@@ -85,7 +86,7 @@ def crea_indicatori(df):
     #df["MaxMinRel"] = 0
     #df = __trova_massimi_minimi(df, 20)   
     #df = __trova_massimi_minimi(df, 50)   
-    #df = __trova_massimi_minimi(df, 100)   
+    #df = __trova_massimi_minimi(df, 100)         
     
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     #df.dropna(inplace=True, axis=0)
