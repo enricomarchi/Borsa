@@ -5,6 +5,8 @@ import yfinance as yf
 import plotly.graph_objs as go
 import plotly.offline as pyo
 import plotly.subplots as sp
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import PowerTransformer
 
 def pct_change(valore_iniziale, valore_finale):
     try:
@@ -12,6 +14,20 @@ def pct_change(valore_iniziale, valore_finale):
     except ZeroDivisionError:
         return None
 
+def scala(Z):
+    Z_scaler = PowerTransformer()
+    
+    Z_flatten = Z.reshape(-1, Z.shape[1] * Z.shape[2])
+    Z_scaled = Z_scaler.fit_transform(Z_flatten)
+    Z = Z_scaled.reshape(-1, Z.shape[1], Z.shape[2])
+    return Z, Z_scaler
+
+def scala_inversa(Z, scaler):
+    Z = Z.reshape(-1, Z.shape[1] * Z.shape[2])
+    Z = scaler.inverse_transform(Z)
+    Z = Z.reshape(-1, Z.shape[1], Z.shape[2])
+    return Z
+    
 def to_XY(dati_ticker, elenco_features, elenco_targets, n_timesteps, giorni_previsione, addestramento=True):
     new_dates = pd.bdate_range(start=dati_ticker.index[-1] + pd.Timedelta(days=1), periods=giorni_previsione)
     df_new = pd.DataFrame(index=new_dates)
