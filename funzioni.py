@@ -13,41 +13,88 @@ def pct_change(valore_iniziale, valore_finale):
         return ((valore_finale - valore_iniziale) / valore_iniziale) * 100
     except ZeroDivisionError:
         return None
-
-def scala(Z):
-    Z_scaler = PowerTransformer()
     
-    Z_flatten = Z.reshape(-1, Z.shape[1] * Z.shape[2])
-    Z_scaled = Z_scaler.fit_transform(Z_flatten)
-    Z = Z_scaled.reshape(-1, Z.shape[1], Z.shape[2])
-    return Z, Z_scaler
+def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, addestramento=True):
+    scaler_prezzo = MinMaxScaler()
+    scaler_meno_piu = MinMaxScaler(feature_range=(-1, 1))
+    scaler_standard = MinMaxScaler()
 
-def scala_inversa(Z, scaler):
-    Z = Z.reshape(-1, Z.shape[1] * Z.shape[2])
-    Z = scaler.inverse_transform(Z)
-    Z = Z.reshape(-1, Z.shape[1], Z.shape[2])
-    return Z
-    
-def to_XY(dati_ticker, elenco_features, elenco_targets, n_timesteps, giorni_previsione, addestramento=True):
     new_dates = pd.bdate_range(start=dati_ticker.index[-1] + pd.Timedelta(days=1), periods=giorni_previsione)
     df_new = pd.DataFrame(index=new_dates)
     dati_ticker = pd.concat([dati_ticker, df_new])
 
-    features = dati_ticker[elenco_features]
+    ft_prezzo = dati_ticker[features_prezzo]
+    ft_standard = dati_ticker[features_da_scalare_singolarmente]
+    ft_meno_piu = dati_ticker[features_meno_piu]
+    ft_no_scala = dati_ticker[features_no_scala]
+    ft_candele = dati_ticker[features_candele] / 100
+
     targets = dati_ticker[elenco_targets]
 
     if addestramento:
-        i_tot = len(features) - giorni_previsione*2
+        i_tot = len(dati_ticker) - giorni_previsione*2
     else:
-        i_tot = len(features) - giorni_previsione
-    X, Y = [], []
-    for i in range(n_timesteps - 1, i_tot):
-        X.append(features.iloc[i - (n_timesteps - 1):i + 1])
-        Y.append(targets.iloc[i + 1:i + 1 + giorni_previsione])
+        i_tot = len(dati_ticker) - giorni_previsione
+
+    tot_elementi = i_tot - (n_timesteps-1)    
     
+    X_prezzo = X_standard = X_meno_piu = X_no_scala = X_candele = None
+    if len(features_prezzo) > 0:
+        tot_col_prezzo_x = len(ft_prezzo.columns)
+        X_prezzo = np.zeros((tot_elementi, n_timesteps, tot_col_prezzo_x))
+    if len(features_da_scalare_singolarmente) > 0:
+        tot_col_standard_x = len(ft_standard.columns)
+        X_standard = np.zeros((tot_elementi, n_timesteps, tot_col_standard_x))
+    if len(features_meno_piu) > 0:
+        tot_col_meno_piu_x = len(ft_meno_piu.columns)
+        X_meno_piu = np.zeros((tot_elementi, n_timesteps, tot_col_meno_piu_x))
+    if len(features_no_scala) > 0:
+        tot_col_no_scala_x = len(ft_no_scala.columns)
+        X_no_scala = np.zeros((tot_elementi, n_timesteps, tot_col_no_scala_x))
+    if len(features_candele) > 0:
+        tot_col_candele_x = len(ft_candele.columns)
+        X_candele = np.zeros((tot_elementi, n_timesteps, tot_col_candele_x))
+    if len(elenco_targets) > 0:
+        tot_col_targets_y = len(targets.columns)
+        Y = np.zeros((tot_elementi, giorni_previsione, tot_col_targets_y))
+    
+    for i in range(n_timesteps - 1, i_tot):
+        if len(features_prezzo) > 0:
+            arr_x = np.array(ft_prezzo.iloc[i - (n_timesteps - 1):i + 1])
+            arr_res = arr_x.reshape(-1, 1)
+            scaler_prezzo.fit(arr_res)
+            arr_sc = scaler_prezzo.transform(arr_res).reshape(n_timesteps, tot_col_prezzo_x)
+            X_prezzo[i - (n_timesteps - 1)] = arr_sc
+
+        if len(features_da_scalare_singolarmente) > 0:
+            arr_x = np.array(ft_standard.iloc[i - (n_timesteps - 1):i + 1])
+            arr_sc = scaler_standard.fit_transform(arr_x)   
+            X_standard[i - (n_timesteps - 1)] = arr_sc
+
+        if len(features_meno_piu) > 0:
+            arr_x = np.array(ft_meno_piu.iloc[i - (n_timesteps - 1):i + 1])
+            arr_sc = scaler_meno_piu.fit_transform(arr_x)   
+            X_meno_piu[i - (n_timesteps - 1)] = arr_sc
+
+        if len(features_no_scala) > 0:
+            arr_x = np.array(ft_no_scala.iloc[i - (n_timesteps - 1):i + 1])
+            X_no_scala[i - (n_timesteps - 1)] = arr_x
+
+        if len(features_candele) > 0:
+            arr_x = np.array(ft_candele.iloc[i - (n_timesteps - 1):i + 1])
+            X_candele[i - (n_timesteps - 1)] = arr_x
+
+        if len(elenco_targets) > 0:
+            arr_y = np.array(targets.iloc[i + 1:i + 1 + giorni_previsione])
+            arr_res = arr_y.reshape(-1, 1)
+            arr_sc = scaler_prezzo.transform(arr_res).reshape(giorni_previsione, tot_col_targets_y)
+            Y[i - (n_timesteps - 1)] = arr_sc  
+
+    X_list = [x for x in [X_prezzo, X_standard, X_meno_piu, X_no_scala, X_candele] if x is not None and x.size > 0]
+    X = np.concatenate(X_list, axis=2) if X_list else np.array([])
     idx = dati_ticker.index[n_timesteps - 1:i_tot]
     
-    return idx, np.array(X), np.array(Y)
+    return idx, X, Y, scaler_prezzo
 
 def crea_indicatori(df):
     psar = ta.psar(high=df["High"], low=df["Low"], close=df["Close"], af0=0.02, af=0.02, max_af=0.2)
