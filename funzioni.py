@@ -7,6 +7,7 @@ import plotly.offline as pyo
 import plotly.subplots as sp
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import PowerTransformer
+from imblearn.under_sampling import RandomUnderSampler
 
 def pct_change(valore_iniziale, valore_finale):
     try:
@@ -56,7 +57,8 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
         X_candele = np.zeros((tot_elementi, n_timesteps, tot_col_candele_x))
     if len(elenco_targets) > 0:
         tot_col_targets_y = len(targets.columns)
-        Y = np.zeros((tot_elementi, giorni_previsione, tot_col_targets_y))
+        #Y = np.zeros((tot_elementi, giorni_previsione, tot_col_targets_y)) # togliere se classificazione binaria
+        Y = np.zeros(tot_elementi) #solo per classificazione binaria
     
     for i in range(n_timesteps - 1, i_tot):
         if len(features_prezzo) > 0:
@@ -95,7 +97,13 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
     X = np.concatenate(X_list, axis=2) if X_list else np.array([])
     idx = dati_ticker.index[n_timesteps - 1:i_tot]
     
-    Y = Y.reshape(-1, 1) #solo per classificazione binaria
+    rus = RandomUnderSampler()
+    dim1 = X.shape[1]
+    dim2 = X.shape[2]
+    X = X.reshape(-1, dim1 * dim2)
+    X, Y = rus.fit_resample(X, Y)
+    X = X.reshape(-1, dim1, dim2)
+    Y = Y.reshape(-1, 1)
 
     return idx, X, Y, scaler_prezzo
 
