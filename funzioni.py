@@ -85,15 +85,18 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
             X_candele[i - (n_timesteps - 1)] = arr_x
 
         if len(elenco_targets) > 0:
-            arr_y = np.array(targets.iloc[i + 1:i + 1 + giorni_previsione])
-            arr_res = arr_y.reshape(-1, 1)
-            arr_sc = scaler_prezzo.transform(arr_res).reshape(giorni_previsione, tot_col_targets_y)
-            Y[i - (n_timesteps - 1)] = arr_sc  
+            # arr_y = np.array(targets.iloc[i + 1:i + 1 + giorni_previsione]) # togliere in caso di classificazione binaria
+            # arr_res = arr_y.reshape(-1, 1) # togliere in caso di classificazione binaria
+            # arr_sc = scaler_prezzo.transform(arr_res).reshape(giorni_previsione, tot_col_targets_y) # togliere in caso di classificazione binaria
+            # Y[i - (n_timesteps - 1)] = arr_sc  # togliere in caso di classificazione binaria
+            Y[i - (n_timesteps - 1)] = np.array(targets.iloc[i]) #solo per classificazione binaria
 
     X_list = [x for x in [X_prezzo, X_standard, X_meno_piu, X_no_scala, X_candele] if x is not None and x.size > 0]
     X = np.concatenate(X_list, axis=2) if X_list else np.array([])
     idx = dati_ticker.index[n_timesteps - 1:i_tot]
     
+    Y = Y.reshape(-1, 1) #solo per classificazione binaria
+
     return idx, X, Y, scaler_prezzo
 
 def crea_indicatori(df):
