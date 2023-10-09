@@ -125,14 +125,24 @@ def crea_indicatori(df):
 
     df = __rinomina_colonne(df)
 
-    #df = __calcolo_drawdown_gain(df, 20)
+    df = __calcolo_drawdown_gain(df, 20)
     #df = __calcolo_drawdown_gain(df, 50)
     #df = __calcolo_drawdown_gain(df, 100)
     #df["max_gain"] = df[["Perc_Max_High_Futuro_20d", "Perc_Max_High_Futuro_50d", "Perc_Max_High_Futuro_100d"]].max(axis=1)
     #df["max_drawdown"] = df[["Perc_Drawdown_20d", "Perc_Drawdown_50d", "Perc_Drawdown_100d"]].min(axis=1)
 
-    #df['EMA_5_20d'] = df['EMA_5'].shift(-20)
-    #df['Close_20d'] = df['Close'].shift(-20)
+    df['EMA_20_5d'] = df['EMA_20'].shift(-5)
+    df['EMA_20_10d'] = df['EMA_20'].shift(-10)
+    df['EMA_20_15d'] = df['EMA_20'].shift(-15)
+    df['EMA_20_20d'] = df['EMA_20'].shift(-20)
+    df['EMA_50_5d'] = df['EMA_50'].shift(-5)
+    df['EMA_50_10d'] = df['EMA_50'].shift(-10)
+    df['EMA_50_15d'] = df['EMA_50'].shift(-15)
+    df['EMA_50_20d'] = df['EMA_50'].shift(-20)
+    df['Close_5d'] = df['Close'].shift(-5)
+    df['Close_10d'] = df['Close'].shift(-10)
+    df['Close_15d'] = df['Close'].shift(-15)
+    df['Close_20d'] = df['Close'].shift(-20)
     #df['Close_1d'] = df['Close'].shift(-1)
     #df['perc_EMA_5_20d'] = ((df['EMA_5_20d'] - df['EMA_5']) / df['EMA_5']) * 100
     #df['perc_Close_20d'] = ((df['Close_20d'] - df['Close']) / df['Close']) * 100
@@ -151,6 +161,16 @@ def crea_indicatori(df):
     #df = __trova_massimi_minimi(df, 50)   
     #df = __trova_massimi_minimi(df, 100)         
     
+    df['Target'] = (
+        (df["Perc_Drawdown_20d"] < 5) & 
+        (df['Close_5d'] > df['Close']) & (df['Close_10d'] > df['Close']) & (df['Close_15d'] > df['Close'])  & (df['Close_15d'] > df['Close']) &
+        (df['Close_5d'] > df['EMA_20_5d']) & (df['EMA_20_5d'] > df['EMA_50_5d']) &
+        (df['Close_10d'] > df['EMA_20_10d']) & (df['EMA_20_10d'] > df['EMA_50_10d']) &
+        (df['Close_15d'] > df['EMA_20_15d']) & (df['EMA_20_15d'] > df['EMA_50_15d']) &
+        (df['Close_20d'] > df['EMA_20_20d']) & (df['EMA_20_20d'] > df['EMA_50_20d']) &
+        (df['EMA_20'] < df['EMA_50'])
+    )
+
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     #df.dropna(inplace=True, axis=0)
 
