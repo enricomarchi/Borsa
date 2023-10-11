@@ -9,6 +9,72 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import PowerTransformer
 from imblearn.under_sampling import RandomUnderSampler
 
+simbolo_test = "BTG"
+simbolo_validazione = "DHT"
+n_simboli_addestramento = "Tutti"
+epochs=50
+batch_size=5000
+n_timesteps = 60 # n. barre del periodo passato per la ricerca di pattern, inclusa ultima data disponibile
+giorni_previsione = 1 # n. barre nel futuro di cui si desidera prevedere il prezzo
+set_file_x_y = f"_{n_simboli_addestramento}"
+initial_lr = 0.001
+
+features_prezzo = [
+    "Close",
+#    "EMA_5", 
+    "EMA_20", 
+    "EMA_50",
+    "Open",  
+    "High",
+    "Low",
+    "PSAR",
+    "SUPERT", 
+]
+
+features_da_scalare_singolarmente = [
+    "Volume",
+    "ATR",
+    "PSARaf",
+    "ADX",
+]
+
+features_meno_piu = [
+    "MACDh",    
+    "AROONOSC",
+    "TRIX",
+    "TRIXs",
+    "DM_OSC",
+]
+
+features_no_scala = [
+    "SUPERTd",  
+    "PSARr"
+]
+
+features_candele = [
+#    "CDL_2CROWS", "CDL_3BLACKCROWS", "CDL_3INSIDE", "CDL_3LINESTRIKE", "CDL_3OUTSIDE", "CDL_3STARSINSOUTH", "CDL_3WHITESOLDIERS", "CDL_ABANDONEDBABY", "CDL_ADVANCEBLOCK", "CDL_BELTHOLD", "CDL_BREAKAWAY", "CDL_CLOSINGMARUBOZU", "CDL_CONCEALBABYSWALL", "CDL_COUNTERATTACK", "CDL_DARKCLOUDCOVER", "CDL_DOJI_10_0.1", "CDL_DOJISTAR", "CDL_DRAGONFLYDOJI", "CDL_ENGULFING", "CDL_EVENINGDOJISTAR", "CDL_EVENINGSTAR", "CDL_GAPSIDESIDEWHITE", "CDL_GRAVESTONEDOJI", "CDL_HAMMER", "CDL_HANGINGMAN", "CDL_HARAMI", "CDL_HARAMICROSS", "CDL_HIGHWAVE", "CDL_HIKKAKE", "CDL_HIKKAKEMOD", "CDL_HOMINGPIGEON", "CDL_IDENTICAL3CROWS", "CDL_INNECK", "CDL_INSIDE", "CDL_INVERTEDHAMMER", "CDL_KICKING", "CDL_KICKINGBYLENGTH", "CDL_LADDERBOTTOM", "CDL_LONGLEGGEDDOJI", "CDL_LONGLINE", "CDL_MARUBOZU", "CDL_MATCHINGLOW", "CDL_MATHOLD", "CDL_MORNINGDOJISTAR", "CDL_MORNINGSTAR", "CDL_ONNECK", "CDL_PIERCING", "CDL_RICKSHAWMAN", "CDL_RISEFALL3METHODS", "CDL_SEPARATINGLINES", "CDL_SHOOTINGSTAR", "CDL_SHORTLINE", "CDL_SPINNINGTOP", "CDL_STALLEDPATTERN", "CDL_STICKSANDWICH", "CDL_TAKURI", "CDL_TASUKIGAP", "CDL_THRUSTING", "CDL_TRISTAR", "CDL_UNIQUE3RIVER", "CDL_UPSIDEGAP2CROWS", "CDL_XSIDEGAP3METHODS",
+]
+
+elenco_targets = [
+#    "EMA_5",
+#    "EMA_20", 
+#    "EMA_50",
+    #"Open",
+    #"High",
+    #"Low",
+    "Target"
+]
+
+col_features_prezzo = {col: idx for idx, col in enumerate(features_prezzo)}
+col_features_da_scalare_singolarmente = {col: idx for idx, col in enumerate(features_da_scalare_singolarmente)}
+col_features_meno_piu = {col: idx for idx, col in enumerate(features_meno_piu)}
+col_features_no_scala = {col: idx for idx, col in enumerate(features_no_scala)}
+col_features_candele = {col: idx for idx, col in enumerate(features_candele)}
+col_targets = {col: idx for idx, col in enumerate(elenco_targets)}
+n_features = len(col_features_prezzo) + len(col_features_da_scalare_singolarmente) + len(col_features_meno_piu) + len(col_features_no_scala) + len(col_features_candele) 
+n_targets = len(col_targets) 
+
+
 def pct_change(valore_iniziale, valore_finale):
     try:
         return ((valore_finale - valore_iniziale) / valore_iniziale) * 100
@@ -16,7 +82,7 @@ def pct_change(valore_iniziale, valore_finale):
         return None
     
 def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, addestramento=True):
-    scaler_prezzo = MinMaxScaler()
+    scalers_prezzo = []
     scaler_meno_piu = MinMaxScaler(feature_range=(-1, 1))
     scaler_standard = MinMaxScaler()
 
@@ -64,9 +130,11 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
         if len(features_prezzo) > 0:
             arr_x = np.array(ft_prezzo.iloc[i - (n_timesteps - 1):i + 1])
             arr_res = arr_x.reshape(-1, 1)
+            scaler_prezzo = MinMaxScaler()
             scaler_prezzo.fit(arr_res)
             arr_sc = scaler_prezzo.transform(arr_res).reshape(n_timesteps, tot_col_prezzo_x)
             X_prezzo[i - (n_timesteps - 1)] = arr_sc
+            scalers_prezzo.append(scaler_prezzo)
 
         if len(features_da_scalare_singolarmente) > 0:
             arr_x = np.array(ft_standard.iloc[i - (n_timesteps - 1):i + 1])
@@ -96,16 +164,17 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
     X_list = [x for x in [X_prezzo, X_standard, X_meno_piu, X_no_scala, X_candele] if x is not None and x.size > 0]
     X = np.concatenate(X_list, axis=2) if X_list else np.array([])
     idx = dati_ticker.index[n_timesteps - 1:i_tot]
-    
-    rus = RandomUnderSampler()
-    dim1 = X.shape[1]
-    dim2 = X.shape[2]
-    X = X.reshape(-1, dim1 * dim2)
-    X, Y = rus.fit_resample(X, Y)
-    X = X.reshape(-1, dim1, dim2)
     Y = Y.reshape(-1, 1)
 
-    return idx, X, Y, scaler_prezzo
+    if addestramento:
+        rus = RandomUnderSampler()
+        dim1 = X.shape[1]
+        dim2 = X.shape[2]
+        X = X.reshape(-1, dim1 * dim2)
+        X, Y = rus.fit_resample(X, Y)
+        X = X.reshape(-1, dim1, dim2)
+
+    return idx, X, Y, scalers_prezzo
 
 def crea_indicatori(df):
     psar = ta.psar(high=df["High"], low=df["Low"], close=df["Close"], af0=0.02, af=0.02, max_af=0.2)
