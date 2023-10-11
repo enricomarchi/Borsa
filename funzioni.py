@@ -164,8 +164,7 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
     X_list = [x for x in [X_prezzo, X_standard, X_meno_piu, X_no_scala, X_candele] if x is not None and x.size > 0]
     X = np.concatenate(X_list, axis=2) if X_list else np.array([])
     idx = dati_ticker.index[n_timesteps - 1:i_tot]
-    Y = Y.reshape(-1, 1)
-
+ 
     if addestramento:
         rus = RandomUnderSampler()
         dim1 = X.shape[1]
@@ -174,6 +173,7 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
         X, Y = rus.fit_resample(X, Y)
         X = X.reshape(-1, dim1, dim2)
 
+    Y = Y.reshape(-1, 1)
     return idx, X, Y, scalers_prezzo
 
 def crea_indicatori(df):
