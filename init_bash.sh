@@ -1,8 +1,6 @@
 #!/bin/bash
 git checkout -- .
 git pull origin main
-rm -r bayesian_search/
-rm -r dati/
 pip install keras_tuner
 pip install tensorflow
 pip install yfinance
