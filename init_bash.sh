@@ -10,4 +10,3 @@ pip install scikit-learn
 pip install pyarrow
 pip install fastparquet
 pip install imbalanced-learn
-pip install numpy --upgrade
