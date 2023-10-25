@@ -5,19 +5,19 @@ import yfinance as yf
 import plotly.graph_objs as go
 import plotly.offline as pyo
 import plotly.subplots as sp
+import os
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import PowerTransformer
 from imblearn.under_sampling import RandomUnderSampler
+import tensorflow as tf
+from tensorflow.python.keras.models import load_model, Sequential
+from tensorflow.python.keras.layers import LSTM, Dropout, Dense
+from tensorflow.python.keras.regularizers import l2
+import kerastuner as kt
+from kerastuner.engine.hypermodel import HyperModel
+from kerastuner.tuners import BayesianOptimization
+from tensorflow.python.keras.metrics import Precision, Recall, AUC, F1Score
 
-simbolo_test = "BTG"
-simbolo_validazione = "DHT"
-n_simboli_addestramento = "Tutti"
-epochs=50
-batch_size=5000
 n_timesteps = 60 # n. barre del periodo passato per la ricerca di pattern, inclusa ultima data disponibile
-giorni_previsione = 1 # n. barre nel futuro di cui si desidera prevedere il prezzo
-set_file_x_y = f"_{n_simboli_addestramento}"
-initial_lr = 0.001
 
 features_prezzo = [
     "Close",
@@ -74,6 +74,204 @@ col_targets = {col: idx for idx, col in enumerate(elenco_targets)}
 n_features = len(col_features_prezzo) + len(col_features_da_scalare_singolarmente) + len(col_features_meno_piu) + len(col_features_no_scala) + len(col_features_candele) 
 n_targets = len(col_targets) 
 
+class MixedHyperModel(HyperModel):
+    def __init__(self, n_timesteps, n_features):
+        self.n_timesteps = n_timesteps
+        self.n_features = n_features
+
+    def build(self, hp):
+        model = Sequential()
+
+        # Layer LSTM iniziale
+        model.add(LSTM(hp.Int('lstm_units_1', 50, 500, step=50), return_sequences=True,
+                       input_shape=(self.n_timesteps, self.n_features), kernel_initializer='glorot_uniform'), unroll=False)
+
+        # Aggiunta di layer LSTM intermedi
+        for i in range(hp.Int('num_lstm_layers', 1, 4)):
+            model.add(LSTM(hp.Int(f'lstm_units_{i+2}', 50, 500, step=50), return_sequences=True,
+                           kernel_regularizer=l2(hp.Float(f'l2_rate_{i+2}', 0.000001, 5, step=0.001)), kernel_initializer='glorot_uniform'), unroll=False)
+            model.add(Dropout(hp.Float(f'lstm_dropout_{i+2}', 0, 0.5, step=0.1)))
+
+        # Ultimo layer LSTM prima del layer Dense
+        model.add(LSTM(hp.Int(f'lstm_units_{i+2}', 50, 500, step=50), return_sequences=False,
+                                       kernel_regularizer=l2(hp.Float(f'l2_rate_{i+2}', 0.000001, 5, step=0.001)), kernel_initializer='glorot_uniform'), unroll=False)
+
+        # Aggiunta di layer Dense
+        for i in range(hp.Int('num_dense_layers', 1, 4)):
+            model.add(Dense(hp.Int(f'dense_units_{i}', 50, 500, step=50), activation='relu', kernel_initializer='glorot_uniform'))
+            model.add(Dropout(hp.Float(f'dense_dropout_{i}', 0, 0.5, step=0.1)))
+
+        model.add(Dense(1, activation='sigmoid', kernel_initializer='glorot_uniform'))
+
+        model.compile(optimizer="adam", 
+              loss='binary_crossentropy', 
+              metrics=['accuracy', 
+                       Precision(name='precision'), 
+                       Recall(name='recall'), 
+                       AUC(name='auc'),
+                       tf.keras.metrics.F1Score(threshold=0.5)])
+
+        return model
+
+def bay(hypermodel, objective, X_train, Y_train, X_val, Y_val, epochs, batch_size, callbacks):
+    bayesian_tuner = BayesianOptimization(
+        hypermodel,
+        objective=objective,
+        max_trials=50,
+        directory='bayesian_search',
+        project_name='bayesian_tuning'
+    )
+    
+    bayesian_tuner.search_space_summary()    
+
+    bayesian_tuner.search(X_train, Y_train, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val), callbacks=callbacks)
+    
+    best_model_bayesian = bayesian_tuner.get_best_models(num_models=1)[0]
+    best_hyperparameters_bayesian = bayesian_tuner.get_best_hyperparameters(num_trials=1)[0]
+
+    print("Migliori iperparametri per Bayesian Optimization:", best_hyperparameters_bayesian.values)
+    
+    return bayesian_tuner, best_model_bayesian, best_hyperparameters_bayesian
+
+# def hb(hypermodel, X_train, Y_train, X_val, Y_val):
+#     hyperband_tuner = kt.tuners.Hyperband(
+#         hypermodel,
+#         objective='val_loss',
+#         max_trials=50,
+#         directory='hyperband_search',
+#         project_name='hyperband_tuning'
+#     )
+    
+#     hyperband_tuner.search_space_summary()
+    
+#     hyperband_tuner.search(X_train, Y_train, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val), callbacks=[early_stopping, reduce_lr])
+    
+#     best_model_hyperband = hyperband_tuner.get_best_models(num_models=1)[0]
+#     best_hyperparameters_hyperband = hyperband_tuner.get_best_hyperparameters(num_trials=1)[0]
+
+#     print("Migliori iperparametri per Hyperband:", best_hyperparameters_hyperband.values)
+    
+#     return best_model_hyperband, best_hyperparameters_hyperband
+
+# def rd(hypermodel, X_train, Y_train, X_val, Y_val):
+#     random_tuner = kt.tuners.RandomSearch(
+#         hypermodel,
+#         objective='val_loss',
+#         max_trials=50,
+#         executions_per_trial=2,
+#         directory='random_search',
+#         project_name='random_tuning'
+#     )
+#     random_tuner.search_space_summary()
+    
+#     random_tuner.search(X_train, Y_train, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val), callbacks=[early_stopping, reduce_lr])
+#     # Ottieni il miglior modello e i migliori iperparametri
+#     best_model_random = random_tuner.get_best_models(num_models=1)[0]
+#     best_hyperparameters_random = random_tuner.get_best_hyperparameters(num_trials=1)[0]
+
+#     print("Migliori iperparametri per Random Search:", best_hyperparameters_random.values)
+    
+#     return best_model_random, best_hyperparameters_random
+
+def set_di_tuning(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y):
+    if os.path.exists(f"{perc_dati}/indice.npy"):    
+        inizio = np.load(f"{perc_dati}/indice.npy")
+        print(inizio)
+    else:
+        inizio = 0
+
+    if os.path.exists(f"{perc_dati}/X{set_file_x_y}.npy") and os.path.exists(f"{perc_dati}/Y{set_file_x_y}.npy"):
+        print("Caricamento X e Y")
+        X = np.load(f'{perc_dati}/X{set_file_x_y}.npy')
+        Y = np.load(f'{perc_dati}/Y{set_file_x_y}.npy')
+    else:
+        X = np.zeros((0, n_timesteps, n_features))
+        Y = np.zeros((0, 1)) 
+    if inizio < n_simboli_addestramento:
+        lista_x, lista_y = [], []
+        for i_ticker in range (inizio, n_simboli_addestramento):
+            nome_simbolo = lista_ticker["Ticker"].iloc[i_ticker]
+            print(f"\033[48;5;42m{i_ticker+1} di {n_simboli_addestramento}: Ticker {nome_simbolo}\033[0m")
+            print("Download dati ticker", flush=True)
+            try:
+                ticker = yf.download(nome_simbolo, start='2010-01-01', end='2023-12-31', progress=False)
+                if ticker["Close"].iloc[-1] >= 1:
+                    ticker.index = ticker.index.date
+                    print("Calcolo indicatori ticker", flush=True)
+                    ticker = crea_indicatori(ticker)
+                    ticker.dropna(axis=0, inplace=True)
+
+                    print("Definizione features e target", flush=True)
+                    _, X_train, Y_train, _ = to_XY(ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, addestramento=True)
+
+                    print("Aggiunta dati a liste X e Y", flush=True)
+                    lista_x.append(X_train)  
+                    print(X_train.shape)      
+                    lista_y.append(Y_train)   
+                    print(Y_train.shape)
+                    if ((i_ticker + 1) % 100 == 0):
+                        print("Concatenamento su X, Y", flush=True)
+                        X_arr = np.concatenate(lista_x, axis=0)
+                        Y_arr = np.concatenate(lista_y, axis=0)
+                        X = np.concatenate((X, X_arr), axis=0)
+                        Y = np.concatenate((Y, Y_arr), axis=0)
+                        print("Salvataggio X e Y su file", flush=True)
+                        np.save(f'{perc_dati}/X{set_file_x_y}', X)
+                        np.save(f'{perc_dati}/Y{set_file_x_y}', Y)
+                        np.save(f"{perc_dati}/indice", i_ticker)
+                        lista_x, lista_y = [], []
+            except Exception as e:
+                print(e)
+                continue
+                
+        print("Concatenamento su X, Y", flush=True)
+        X_arr = np.vstack(lista_x)
+        Y_arr = np.vstack(lista_y)
+        X = np.vstack((X, X_arr))
+        Y = np.vstack((Y, Y_arr))
+        print("Salvataggio X e Y su file", flush=True)
+        np.save(f'{perc_dati}/X{set_file_x_y}', X)
+        np.save(f'{perc_dati}/Y{set_file_x_y}', Y)
+        np.save(f"{perc_dati}/indice", i_ticker)
+        lista_x, lista_y = [], []
+
+    return X, Y
+        
+def addestramento(lista_ticker, n_simboli_addestramento, perc_dati, epochs, batch_size):
+    model = load_model("tuning.keras")
+    
+    if os.path.exists(f"{perc_dati}/indice_addestramento.npy"):    
+        inizio = np.load(f"{perc_dati}/indice_addestramento.npy")
+    else:
+        inizio = 0
+    print("ok")
+    X = np.zeros((0, n_timesteps, n_features))
+    #Y = np.zeros((0, giorni_previsione, n_targets)) #togliere in caso di classificazione binaria
+    Y = np.zeros((0, 1)) #solo per classificazione binaria
+    if inizio < n_simboli_addestramento:
+        for i_ticker in range (inizio, n_simboli_addestramento):
+            nome_simbolo = lista_ticker["Ticker"].iloc[i_ticker]
+            print(f"\033[48;5;42m{i_ticker+1} di {n_simboli_addestramento}: Ticker {nome_simbolo}\033[0m")
+            print("Download dati ticker", flush=True)
+            try:
+                ticker = yf.download(nome_simbolo, start='2010-01-01', end='2023-12-31', progress=False)
+                if ticker["Close"].iloc[-1] >= 1:
+                    ticker.index = ticker.index.date
+                    print("Calcolo indicatori ticker", flush=True)
+                    ticker = crea_indicatori(ticker)
+                    ticker.dropna(axis=0, inplace=True)
+
+                    print("Definizione features e target", flush=True)
+                    _, X_train, Y_train, _ = to_XY(ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, addestramento=True)
+
+                    print(f"Addestramento simbolo {nome_simbolo}", flush=True)
+                    #model.fit(X_train, Y_train, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val))
+                    np.save(f"{perc_dati}/indice_addestramento", i_ticker)
+                    model.save('addestramento.keras')
+
+            except Exception as e:
+                print(e)
+                continue
 
 def pct_change(valore_iniziale, valore_finale):
     try:
