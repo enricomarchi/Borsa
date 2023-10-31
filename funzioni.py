@@ -9,9 +9,8 @@ import os
 from sklearn.preprocessing import MinMaxScaler
 from imblearn.under_sampling import RandomUnderSampler
 import tensorflow as tf
-from tensorflow.python.keras.models import load_model, Sequential
-from tensorflow.python.keras.layers import LSTM, Dropout, Dense
-from tensorflow.keras.layers import Bidirectional, BatchNormalization
+from tensorflow.keras.models import load_model, Sequential
+from tensorflow.keras.layers import Bidirectional, BatchNormalization, LSTM, Dropout, Dense
 from tensorflow.python.keras.regularizers import l2
 import kerastuner as kt
 from kerastuner.engine.hypermodel import HyperModel
@@ -78,9 +77,13 @@ n_targets = len(col_targets)
 
 def crea_modello():
     model = Sequential()
-    model.add(Bidirectional(50, return_sequences=True), input_shape=(n_timesteps, n_features))
-    model.add(Dropout(0.2))
-    model.add(BatchNormalization())
+    model.add(Bidirectional(LSTM(50, return_sequences=True), input_shape=(n_timesteps, n_features)))
+    #model.add(Dropout(0.2))
+    #model.add(BatchNormalization())
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    model.summary()
+    return model
 
 class MixedHyperModel(HyperModel):
     def __init__(self, n_timesteps, n_features):
