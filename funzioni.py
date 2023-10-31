@@ -10,7 +10,8 @@ from sklearn.preprocessing import MinMaxScaler
 from imblearn.under_sampling import RandomUnderSampler
 import tensorflow as tf
 from tensorflow.python.keras.models import load_model, Sequential
-from tensorflow.python.keras.layers import LSTM, Dropout, Dense, Bidirectional, BatchNormalization
+from tensorflow.python.keras.layers import LSTM, Dropout, Dense
+from tensorflow.keras.layers import Bidirectional, BatchNormalization
 from tensorflow.python.keras.regularizers import l2
 import kerastuner as kt
 from kerastuner.engine.hypermodel import HyperModel
@@ -18,6 +19,7 @@ from kerastuner.tuners import BayesianOptimization
 from tensorflow.python.keras.metrics import Precision, Recall, AUC
 
 n_timesteps = 60 # n. barre del periodo passato per la ricerca di pattern, inclusa ultima data disponibile
+giorni_previsione = 1
 
 features_prezzo = [
     "Close",
