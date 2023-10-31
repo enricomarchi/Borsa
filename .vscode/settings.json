@@ -1,4 +1,5 @@
 {
     "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "basic",
+    "papercode.paperspaceApiKey": "326d8ec5167b984dbd29e5d9d6848d"
 }
