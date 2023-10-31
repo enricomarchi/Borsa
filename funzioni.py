@@ -10,12 +10,12 @@ from sklearn.preprocessing import MinMaxScaler
 from imblearn.under_sampling import RandomUnderSampler
 import tensorflow as tf
 from tensorflow.python.keras.models import load_model, Sequential
-from tensorflow.python.keras.layers import LSTM, Dropout, Dense
+from tensorflow.python.keras.layers import LSTM, Dropout, Dense, Bidirectional, BatchNormalization
 from tensorflow.python.keras.regularizers import l2
 import kerastuner as kt
 from kerastuner.engine.hypermodel import HyperModel
 from kerastuner.tuners import BayesianOptimization
-from tensorflow.python.keras.metrics import Precision, Recall, AUC, F1Score
+from tensorflow.python.keras.metrics import Precision, Recall, AUC
 
 n_timesteps = 60 # n. barre del periodo passato per la ricerca di pattern, inclusa ultima data disponibile
 
@@ -73,6 +73,12 @@ col_features_candele = {col: idx for idx, col in enumerate(features_candele)}
 col_targets = {col: idx for idx, col in enumerate(elenco_targets)}
 n_features = len(col_features_prezzo) + len(col_features_da_scalare_singolarmente) + len(col_features_meno_piu) + len(col_features_no_scala) + len(col_features_candele) 
 n_targets = len(col_targets) 
+
+def crea_modello():
+    model = Sequential()
+    model.add(Bidirectional(50, return_sequences=True), input_shape=(n_timesteps, n_features))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
 
 class MixedHyperModel(HyperModel):
     def __init__(self, n_timesteps, n_features):
