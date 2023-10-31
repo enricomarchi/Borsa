@@ -81,7 +81,7 @@ def crea_modello():
     #model.add(Dropout(0.2))
     #model.add(BatchNormalization())
     model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mean_squared_error')
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['binary_accuracy', 'accuracy'])
     model.summary()
     return model
 
