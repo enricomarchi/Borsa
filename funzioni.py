@@ -67,6 +67,7 @@ elenco_targets = [
     "Target"
 ]
 
+elenco_features = features_prezzo + features_da_scalare_singolarmente + features_meno_piu + features_no_scala + features_candele
 col_features_prezzo = {col: idx for idx, col in enumerate(features_prezzo)}
 col_features_da_scalare_singolarmente = {col: idx for idx, col in enumerate(features_da_scalare_singolarmente)}
 col_features_meno_piu = {col: idx for idx, col in enumerate(features_meno_piu)}
