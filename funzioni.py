@@ -38,19 +38,31 @@ features_da_scalare_singolarmente = [
     "ATR",
     "PSARaf",
     "ADX",
+    "OBV"
 ]
 
 features_meno_piu = [
     "MACDh",    
+    "MACD",
+    "MACDs",
     "AROONOSC",
     "TRIX",
     "TRIXs",
     "DM_OSC",
+    "TSI",
+    "TSIs",
+    "ROC_10",
+    "KVO",
+    "KVOs",
+    "VI_OSC"
 ]
 
 features_no_scala = [
     "SUPERTd",  
-    "PSARr"
+    "PSARr",
+    "CMF",
+    "VHF",
+    "VTX_OSC"
 ]
 
 features_candele = [
@@ -236,17 +248,18 @@ def set_di_tuning(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y
             except Exception as e:
                 print(e)
                 continue
-                
-        print("Concatenamento su X, Y", flush=True)
-        X_arr = np.vstack(lista_x)
-        Y_arr = np.vstack(lista_y)
-        X = np.vstack((X, X_arr))
-        Y = np.vstack((Y, Y_arr))
-        print("Salvataggio X e Y su file", flush=True)
-        np.save(f'{perc_dati}/X{set_file_x_y}', X)
-        np.save(f'{perc_dati}/Y{set_file_x_y}', Y)
-        np.save(f"{perc_dati}/indice", i_ticker)
-        lista_x, lista_y = [], []
+
+        if len(lista_x) > 0:        
+            print("Concatenamento su X, Y", flush=True)
+            X_arr = np.concatenate(lista_x, axis=0)
+            Y_arr = np.concatenate(lista_y, axis=0)
+            X = np.concatenate((X, X_arr), axis=0)
+            Y = np.concatenate((Y, Y_arr), axis=0)
+            print("Salvataggio X e Y su file", flush=True)
+            np.save(f'{perc_dati}/X{set_file_x_y}', X)
+            np.save(f'{perc_dati}/Y{set_file_x_y}', Y)
+            np.save(f"{perc_dati}/indice", i_ticker)
+            lista_x, lista_y = [], []
 
     return X, Y
         
@@ -305,7 +318,7 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
     ft_standard = dati_ticker[features_da_scalare_singolarmente]
     ft_meno_piu = dati_ticker[features_meno_piu]
     ft_no_scala = dati_ticker[features_no_scala]
-    ft_candele = dati_ticker[features_candele] / 100
+    ft_candele = dati_ticker[features_candele] 
 
     targets = dati_ticker[elenco_targets]
 
@@ -363,7 +376,8 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
 
         if len(features_candele) > 0:
             arr_x = np.array(ft_candele.iloc[i - (n_timesteps - 1):i + 1])
-            X_candele[i - (n_timesteps - 1)] = arr_x
+            arr_sc = scaler_meno_piu.fit_transform(arr_x) 
+            X_candele[i - (n_timesteps - 1)] = arr_sc
 
         if len(elenco_targets) > 0:
             # arr_y = np.array(targets.iloc[i + 1:i + 1 + giorni_previsione]) # togliere in caso di classificazione binaria
@@ -528,11 +542,11 @@ def __rinomina_colonne(df):
         'CMF_10': 'CMF',
         'TRIX_18_9': 'TRIX',
         'TRIXs_18_9': 'TRIXs',
-#        'KVO_34_55_13': 'KVO',
-#        'KVOs_34_55_13': 'KVOs',
-#        'DCL_20_20': 'DCL',
-#        'DCM_20_20': 'DCM',
-#        'DCU_20_20': 'DCU',
+        'KVO_34_55_13': 'KVO',
+        'KVOs_34_55_13': 'KVOs',
+        'DCL_20_20': 'DCL',
+        'DCM_20_20': 'DCM',
+        'DCU_20_20': 'DCU',
         'VTXP_20': 'VTXP',
         'VTXM_20': 'VTXM',
         'AROOND_20': 'AROOND',
@@ -540,7 +554,7 @@ def __rinomina_colonne(df):
         'AROONOSC_20': 'AROONOSC',
         'NVI_1': 'NVI',
         'PVI_1': 'PVI',
-#        'VHF_20': 'VHF',
+        'VHF_20': 'VHF',
         'ATRr_14': 'ATR'
     })
     return df
