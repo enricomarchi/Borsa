@@ -66,7 +66,7 @@ features_no_scala = [
 ]
 
 features_candele = [
-    "CDL_2CROWS", "CDL_3BLACKCROWS", "CDL_3INSIDE", "CDL_3LINESTRIKE", "CDL_3OUTSIDE", "CDL_3STARSINSOUTH", "CDL_3WHITESOLDIERS", "CDL_ABANDONEDBABY", "CDL_ADVANCEBLOCK", "CDL_BELTHOLD", "CDL_BREAKAWAY", "CDL_CLOSINGMARUBOZU", "CDL_CONCEALBABYSWALL", "CDL_COUNTERATTACK", "CDL_DARKCLOUDCOVER", "CDL_DOJI_10_0.1", "CDL_DOJISTAR", "CDL_DRAGONFLYDOJI", "CDL_ENGULFING", "CDL_EVENINGDOJISTAR", "CDL_EVENINGSTAR", "CDL_GAPSIDESIDEWHITE", "CDL_GRAVESTONEDOJI", "CDL_HAMMER", "CDL_HANGINGMAN", "CDL_HARAMI", "CDL_HARAMICROSS", "CDL_HIGHWAVE", "CDL_HIKKAKE", "CDL_HIKKAKEMOD", "CDL_HOMINGPIGEON", "CDL_IDENTICAL3CROWS", "CDL_INNECK", "CDL_INSIDE", "CDL_INVERTEDHAMMER", "CDL_KICKING", "CDL_KICKINGBYLENGTH", "CDL_LADDERBOTTOM", "CDL_LONGLEGGEDDOJI", "CDL_LONGLINE", "CDL_MARUBOZU", "CDL_MATCHINGLOW", "CDL_MATHOLD", "CDL_MORNINGDOJISTAR", "CDL_MORNINGSTAR", "CDL_ONNECK", "CDL_PIERCING", "CDL_RICKSHAWMAN", "CDL_RISEFALL3METHODS", "CDL_SEPARATINGLINES", "CDL_SHOOTINGSTAR", "CDL_SHORTLINE", "CDL_SPINNINGTOP", "CDL_STALLEDPATTERN", "CDL_STICKSANDWICH", "CDL_TAKURI", "CDL_TASUKIGAP", "CDL_THRUSTING", "CDL_TRISTAR", "CDL_UNIQUE3RIVER", "CDL_UPSIDEGAP2CROWS", "CDL_XSIDEGAP3METHODS",
+    #"CDL_2CROWS", "CDL_3BLACKCROWS", "CDL_3INSIDE", "CDL_3LINESTRIKE", "CDL_3OUTSIDE", "CDL_3STARSINSOUTH", "CDL_3WHITESOLDIERS", "CDL_ABANDONEDBABY", "CDL_ADVANCEBLOCK", "CDL_BELTHOLD", "CDL_BREAKAWAY", "CDL_CLOSINGMARUBOZU", "CDL_CONCEALBABYSWALL", "CDL_COUNTERATTACK", "CDL_DARKCLOUDCOVER", "CDL_DOJI_10_0.1", "CDL_DOJISTAR", "CDL_DRAGONFLYDOJI", "CDL_ENGULFING", "CDL_EVENINGDOJISTAR", "CDL_EVENINGSTAR", "CDL_GAPSIDESIDEWHITE", "CDL_GRAVESTONEDOJI", "CDL_HAMMER", "CDL_HANGINGMAN", "CDL_HARAMI", "CDL_HARAMICROSS", "CDL_HIGHWAVE", "CDL_HIKKAKE", "CDL_HIKKAKEMOD", "CDL_HOMINGPIGEON", "CDL_IDENTICAL3CROWS", "CDL_INNECK", "CDL_INSIDE", "CDL_INVERTEDHAMMER", "CDL_KICKING", "CDL_KICKINGBYLENGTH", "CDL_LADDERBOTTOM", "CDL_LONGLEGGEDDOJI", "CDL_LONGLINE", "CDL_MARUBOZU", "CDL_MATCHINGLOW", "CDL_MATHOLD", "CDL_MORNINGDOJISTAR", "CDL_MORNINGSTAR", "CDL_ONNECK", "CDL_PIERCING", "CDL_RICKSHAWMAN", "CDL_RISEFALL3METHODS", "CDL_SEPARATINGLINES", "CDL_SHOOTINGSTAR", "CDL_SHORTLINE", "CDL_SPINNINGTOP", "CDL_STALLEDPATTERN", "CDL_STICKSANDWICH", "CDL_TAKURI", "CDL_TASUKIGAP", "CDL_THRUSTING", "CDL_TRISTAR", "CDL_UNIQUE3RIVER", "CDL_UPSIDEGAP2CROWS", "CDL_XSIDEGAP3METHODS",
 ]
 
 elenco_targets = [
@@ -198,7 +198,7 @@ def bay(hypermodel, objective, X_train, Y_train, X_val, Y_val, epochs, batch_siz
     
 #     return best_model_random, best_hyperparameters_random
 
-def set_di_tuning(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y):
+def set_di_tuning(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y, soglia_memoria=0, bilanciamento=0):
     if os.path.exists(f"{perc_dati}/indice.npy"):    
         inizio = np.load(f"{perc_dati}/indice.npy")
         print(inizio)
@@ -212,6 +212,9 @@ def set_di_tuning(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y
     else:
         X = np.zeros((0, n_timesteps, n_features))
         Y = np.zeros((0, 1)) 
+    
+    tot_samples = 0
+    tot_memoria = 0
     if inizio < n_simboli_addestramento:
         lista_x, lista_y = [], []
         for i_ticker in range (inizio, n_simboli_addestramento):
@@ -227,13 +230,35 @@ def set_di_tuning(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y
                     ticker.dropna(axis=0, inplace=True)
 
                     print("Definizione features e target", flush=True)
-                    _, X_train, Y_train, _ = to_XY(ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, addestramento=True)
+                    _, X_train, Y_train, _ = to_XY(ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, bilanciamento)
 
                     print("Aggiunta dati a liste X e Y", flush=True)
                     lista_x.append(X_train)  
-                    print(X_train.shape)      
+                    print(X_train.shape)    
                     lista_y.append(Y_train)   
                     print(Y_train.shape)
+                    tot_samples += X_train.shape[0]
+                    print(f'({tot_samples})')
+                    tot_memoria += X_train.nbytes
+                    if tot_memoria > 1073741824:
+                        temp = tot_memoria / 1073741824
+                        temp = round(temp, 1)
+                        print(f'{temp} GB')
+                        if (soglia_memoria > 0) and (temp >= soglia_memoria):
+                            break 
+                    elif tot_memoria > 1048576:
+                        temp = tot_memoria / 1048576
+                        temp = round(temp, 1)
+                        print(f'{temp} MB')
+                    elif tot_memoria > 1024:
+                        temp = tot_memoria / 1024
+                        temp = round(temp, 1)
+                        print(f'{temp} KB')
+                    else:
+                        temp = tot_memoria 
+                        temp = round(temp, 1)
+                        print(f'{temp} B')
+
                     if ((i_ticker + 1) % 100 == 0):
                         print("Concatenamento su X, Y", flush=True)
                         X_arr = np.concatenate(lista_x, axis=0)
@@ -305,7 +330,7 @@ def pct_change(valore_iniziale, valore_finale):
     except ZeroDivisionError:
         return None
     
-def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, addestramento=True):
+def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, bilanciamento=0):
     scalers_prezzo = []
     scaler_meno_piu = MinMaxScaler(feature_range=(-1, 1))
     scaler_standard = MinMaxScaler()
@@ -390,8 +415,8 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
     X = np.concatenate(X_list, axis=2) if X_list else np.array([])
     idx = dati_ticker.index[n_timesteps - 1:i_tot]
  
-    if addestramento:
-        rus = RandomUnderSampler()
+    if bilanciamento > 0:
+        rus = RandomUnderSampler(sampling_strategy=0.1)
         dim1 = X.shape[1]
         dim2 = X.shape[2]
         X = X.reshape(-1, dim1 * dim2)
