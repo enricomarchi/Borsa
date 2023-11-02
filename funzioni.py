@@ -17,52 +17,52 @@ from kerastuner.engine.hypermodel import HyperModel
 from kerastuner.tuners import BayesianOptimization
 from tensorflow.python.keras.metrics import Precision, Recall, AUC
 
-n_timesteps = 60 # n. barre del periodo passato per la ricerca di pattern, inclusa ultima data disponibile
+n_timesteps = 120 # n. barre del periodo passato per la ricerca di pattern, inclusa ultima data disponibile
 giorni_previsione = 1
 
 features_prezzo = [
     "Close",
-    "EMA_5", 
-    "EMA_20", 
-    "EMA_50",
-    "EMA_100",
+    # "EMA_5", 
+    # "EMA_20", 
+    # "EMA_50",
+    # "EMA_100",
     "Open",  
     "High",
     "Low",
-    "PSAR",
-    "SUPERT", 
+    # "PSAR",
+    # "SUPERT", 
 ]
 
 features_da_scalare_singolarmente = [
     "Volume",
-    "ATR",
-    "PSARaf",
-    "ADX",
-    "OBV"
+    # "ATR",
+    # "PSARaf",
+    # "ADX",
+    # "OBV"
 ]
 
 features_meno_piu = [
-    "MACDh",    
-    "MACD",
-    "MACDs",
-    "AROONOSC",
-    "TRIX",
-    "TRIXs",
-    "DM_OSC",
-    "TSI",
-    "TSIs",
-    "ROC_10",
-    "KVO",
-    "KVOs",
-    "VI_OSC"
+    # "MACDh",    
+    # "MACD",
+    # "MACDs",
+    # "AROONOSC",
+    # "TRIX",
+    # "TRIXs",
+    # "DM_OSC",
+    # "TSI",
+    # "TSIs",
+    # "ROC_10",
+    # "KVO",
+    # "KVOs",
+    # "VI_OSC"
 ]
 
 features_no_scala = [
-    "SUPERTd",  
-    "PSARr",
-    "CMF",
-    "VHF",
-    "VTX_OSC"
+    # "SUPERTd",  
+    # "PSARr",
+    # "CMF",
+    # "VHF",
+    # "VTX_OSC"
 ]
 
 features_candele = [
@@ -450,9 +450,9 @@ def crea_indicatori(df):
     vhf = ta.vhf(close=df['Close'], length=20)
     atr = ta.atr(high=df['High'], low=df['Low'], close=df['Close'])
     obv = ta.obv(close=df["Close"], volume=df["Volume"])
-    candele = ta.cdl_pattern(open_=df["Open"], high=df["High"], low=df["Low"], close=df["Close"])
+    #candele = ta.cdl_pattern(open_=df["Open"], high=df["High"], low=df["Low"], close=df["Close"])
 
-    df = pd.concat([df, ema5, ema20, ema50, ema100, psar, macd, tsi, supertrend, adx, trix, vi, aroon, nvi, pvi, atr, cmf, roc, klinger, vhf, obv, candele], axis=1)
+    df = pd.concat([df, ema5, ema20, ema50, ema100, psar, macd, tsi, supertrend, adx, trix, vi, aroon, nvi, pvi, atr, cmf, roc, klinger, vhf, obv], axis=1)
 
     df = __rinomina_colonne(df)
 
