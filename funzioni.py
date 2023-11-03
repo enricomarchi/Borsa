@@ -16,6 +16,7 @@ import kerastuner as kt
 from kerastuner.engine.hypermodel import HyperModel
 from kerastuner.tuners import BayesianOptimization
 from tensorflow.python.keras.metrics import Precision, Recall, AUC
+from multiprocessing import Pool, cpu_count, Manager, Value
 
 n_timesteps = 120 # n. barre del periodo passato per la ricerca di pattern, inclusa ultima data disponibile
 giorni_previsione = 1
@@ -23,12 +24,12 @@ giorni_previsione = 1
 features_prezzo = [
     "Close",
     # "EMA_5", 
-    # "EMA_20", 
-    # "EMA_50",
-    # "EMA_100",
-    "Open",  
-    "High",
-    "Low",
+    "EMA_20", 
+    "EMA_50",
+    "EMA_100",
+    #"Open",  
+    #"High",
+    #"Low",
     # "PSAR",
     # "SUPERT", 
 ]
@@ -197,6 +198,74 @@ def bay(hypermodel, objective, X_train, Y_train, X_val, Y_val, epochs, batch_siz
 #     print("Migliori iperparametri per Random Search:", best_hyperparameters_random.values)
     
 #     return best_model_random, best_hyperparameters_random
+
+def process_ticker(nome_simbolo, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, bilanciamento):
+    try:
+        ticker = yf.download(nome_simbolo, start='2010-01-01', end='2023-12-31', progress=False)
+        if ticker["Close"].iloc[-1] >= 1:
+            ticker.index = ticker.index.date
+            ticker = crea_indicatori(ticker)
+            ticker.dropna(axis=0, inplace=True)
+
+            _, X, Y, _ = to_XY(ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, bilanciamento)
+            return nome_simbolo, X, Y
+    except Exception as e:
+        return nome_simbolo, str(e), None
+
+    return nome_simbolo, None, None
+
+def salva_progressi(X, Y, perc_dati, set_file_x_y, tot):
+    print("Salvataggio su file")
+    np.save(f'{perc_dati}/X{set_file_x_y}', X)
+    np.save(f'{perc_dati}/Y{set_file_x_y}', Y)
+    with open(f"{perc_dati}/indice.txt", 'w') as f:
+        f.write(str(tot))
+
+def callback_result(result, X, Y, perc_dati, set_file_x_y, totale_processati, n_simboli_addestramento):
+    nome_simbolo, Xt, Yt = result
+    if Xt is not None and Yt is not None:
+        X.extend(Xt)
+        Y.extend(Yt)
+        with totale_processati.get_lock(): 
+            totale_processati.value += 1
+            if (totale_processati.value % 500 == 0):
+                salva_progressi(X, Y, perc_dati, set_file_x_y, totale_processati.value)
+    print(f"{totale_processati.value}/{n_simboli_addestramento}) Completato ticker {nome_simbolo}")
+
+def set_di_tuning_pool(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y, bilanciamento=0):
+    try:
+        with open(f"{perc_dati}/indice.txt", 'r') as f:
+            inizio = int(f.read().strip())  # Assicurati di rimuovere eventuali spazi vuoti e converti in intero
+    except FileNotFoundError:
+        inizio = 0  # Se il file non esiste, inizia da 0    
+    print(f'inizio={inizio}, n_simboli_addestramento={n_simboli_addestramento}')
+
+    manager = Manager()
+    X = manager.list()
+    Y = manager.list()
+    totale_processati = Value('i', inizio)  # Crea una 'Value' int con valore iniziale 0
+
+    # Controlla se i dati sono già stati salvati e li carica
+    if os.path.exists(f"{perc_dati}/X{set_file_x_y}.npy") and os.path.exists(f"{perc_dati}/Y{set_file_x_y}.npy"):
+        print("Caricamento X e Y")
+        X.extend(np.load(f'{perc_dati}/X{set_file_x_y}.npy'))
+        Y.extend(np.load(f'{perc_dati}/Y{set_file_x_y}.npy'))
+        
+    if inizio < n_simboli_addestramento:
+        with Pool(cpu_count()) as p:
+            for i in range(inizio, n_simboli_addestramento):
+                nome_simbolo = lista_ticker.iloc[i]["Ticker"]
+                task = (nome_simbolo, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, bilanciamento)
+                p.apply_async(process_ticker, args=task, callback=lambda result: callback_result(result, X, Y, perc_dati, set_file_x_y, totale_processati, n_simboli_addestramento))
+
+            p.close()
+            p.join()
+    
+    if ((n_simboli_addestramento - totale_processati.value) < 500):
+        with open(f"{perc_dati}/indice.txt", 'w') as f:
+            f.write(str(n_simboli_addestramento))
+
+    return list(X), list(Y)
 
 def set_di_tuning(lista_ticker, n_simboli_addestramento, perc_dati, set_file_x_y, soglia_memoria=0, bilanciamento=0):
     if os.path.exists(f"{perc_dati}/indice.npy"):    
@@ -371,7 +440,7 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
         tot_col_candele_x = len(ft_candele.columns)
         X_candele = np.zeros((tot_elementi, n_timesteps, tot_col_candele_x))
     if len(elenco_targets) > 0:
-        tot_col_targets_y = len(targets.columns)
+        #tot_col_targets_y = len(targets.columns)
         #Y = np.zeros((tot_elementi, giorni_previsione, tot_col_targets_y)) # togliere se classificazione binaria
         Y = np.zeros(tot_elementi) #solo per classificazione binaria
     
@@ -474,6 +543,10 @@ def crea_indicatori(df):
     df['Close_10d'] = df['Close'].shift(-10)
     df['Close_15d'] = df['Close'].shift(-15)
     df['Close_20d'] = df['Close'].shift(-20)
+    df['EMA_5_5d'] = df['EMA_5'].shift(-5)
+    df['EMA_5_10d'] = df['EMA_5'].shift(-10)
+    df['EMA_5_15d'] = df['EMA_5'].shift(-15)
+    df['EMA_5_20d'] = df['EMA_5'].shift(-20)
     #df['Close_1d'] = df['Close'].shift(-1)
     #df['perc_EMA_5_20d'] = ((df['EMA_5_20d'] - df['EMA_5']) / df['EMA_5']) * 100
     #df['perc_Close_20d'] = ((df['Close_20d'] - df['Close']) / df['Close']) * 100
@@ -494,13 +567,22 @@ def crea_indicatori(df):
     
     df['Target'] = (
         (df["Perc_Drawdown_20d"] < 5) & 
-        (df['Close_5d'] > df['Close']) & (df['Close_10d'] > df['Close']) & (df['Close_15d'] > df['Close'])  & (df['Close_15d'] > df['Close']) &
-        (df['Close_5d'] > df['EMA_20_5d']) & (df['EMA_20_5d'] > df['EMA_50_5d']) &
-        (df['Close_10d'] > df['EMA_20_10d']) & (df['EMA_20_10d'] > df['EMA_50_10d']) &
-        (df['Close_15d'] > df['EMA_20_15d']) & (df['EMA_20_15d'] > df['EMA_50_15d']) &
-        (df['Close_20d'] > df['EMA_20_20d']) & (df['EMA_20_20d'] > df['EMA_50_20d']) &
+        (df['EMA_5_5d'] > df['EMA_5']) & (df['EMA_5_10d'] > df['EMA_5']) & (df['EMA_5_15d'] > df['EMA_5'])  & (df['EMA_5_20d'] > df['EMA_5']) &
+        (df['EMA_5_5d'] > df['EMA_20_5d']) & (df['EMA_20_5d'] > df['EMA_50_5d']) &
+        (df['EMA_5_10d'] > df['EMA_20_10d']) & (df['EMA_20_10d'] > df['EMA_50_10d']) &
+        (df['EMA_5_15d'] > df['EMA_20_15d']) & (df['EMA_20_15d'] > df['EMA_50_15d']) &
+        (df['EMA_5_20d'] > df['EMA_20_20d']) & (df['EMA_20_20d'] > df['EMA_50_20d']) &
         (df['EMA_20'] < df['EMA_50'])
     )
+    # (
+    #     (df["Perc_Drawdown_20d"] < 5) & 
+    #     (df['Close_5d'] > df['Close']) & (df['Close_10d'] > df['Close']) & (df['Close_15d'] > df['Close'])  & (df['Close_20d'] > df['Close']) &
+    #     (df['Close_5d'] > df['EMA_20_5d']) & (df['EMA_20_5d'] > df['EMA_50_5d']) &
+    #     (df['Close_10d'] > df['EMA_20_10d']) & (df['EMA_20_10d'] > df['EMA_50_10d']) &
+    #     (df['Close_15d'] > df['EMA_20_15d']) & (df['EMA_20_15d'] > df['EMA_50_15d']) &
+    #     (df['Close_20d'] > df['EMA_20_20d']) & (df['EMA_20_20d'] > df['EMA_50_20d']) &
+    #     (df['EMA_20'] < df['EMA_50'])
+    # )
 
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     #df.dropna(inplace=True, axis=0)
