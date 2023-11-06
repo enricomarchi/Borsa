@@ -21,7 +21,7 @@ n_timesteps = 120 # n. barre del periodo passato per la ricerca di pattern, incl
 giorni_previsione = 1
 
 features_prezzo = [
-    "Close",
+    #"Close",
     # "EMA_5", 
     "EMA_20", 
     "EMA_50",
@@ -42,17 +42,17 @@ features_da_scalare_singolarmente = [
 ]
 
 features_meno_piu = [
-    # "MACDh",    
+    "MACDh",    
     # "MACD",
     # "MACDs",
-    # "AROONOSC",
-    # "TRIX",
+    "AROONOSC",
+    "TRIX",
     # "TRIXs",
-    # "DM_OSC",
-    # "TSI",
+    "DM_OSC",
+    "TSI",
     # "TSIs",
     # "ROC_10",
-    # "KVO",
+    "KVO",
     # "KVOs",
     # "VI_OSC"
 ]
@@ -112,10 +112,7 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
 
     targets = dati_ticker[elenco_targets]
 
-    if addestramento:
-        i_tot = len(dati_ticker) - giorni_previsione*2
-    else:
-        i_tot = len(dati_ticker) - giorni_previsione
+    i_tot = len(dati_ticker) - giorni_previsione
 
     tot_elementi = i_tot - (n_timesteps-1)    
     
@@ -181,7 +178,7 @@ def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, featu
     idx = dati_ticker.index[n_timesteps - 1:i_tot]
  
     if bilanciamento > 0:
-        rus = RandomUnderSampler(sampling_strategy=0.1)
+        rus = RandomUnderSampler(sampling_strategy=bilanciamento)
         dim1 = X.shape[1]
         dim2 = X.shape[2]
         X = X.reshape(-1, dim1 * dim2)
@@ -261,15 +258,6 @@ def crea_indicatori(df):
     #df = __trova_massimi_minimi(df, 50)   
     #df = __trova_massimi_minimi(df, 100)         
     
-    df['Target'] = (
-        (df["Perc_Drawdown_20d"] < 5) & 
-        (df['EMA_5_5d'] > df['EMA_5']) & (df['EMA_5_10d'] > df['EMA_5']) & (df['EMA_5_15d'] > df['EMA_5'])  & (df['EMA_5_20d'] > df['EMA_5']) &
-        (df['EMA_5_5d'] > df['EMA_20_5d']) & (df['EMA_20_5d'] > df['EMA_50_5d']) &
-        (df['EMA_5_10d'] > df['EMA_20_10d']) & (df['EMA_20_10d'] > df['EMA_50_10d']) &
-        (df['EMA_5_15d'] > df['EMA_20_15d']) & (df['EMA_20_15d'] > df['EMA_50_15d']) &
-        (df['EMA_5_20d'] > df['EMA_20_20d']) & (df['EMA_20_20d'] > df['EMA_50_20d']) &
-        (df['EMA_20'] < df['EMA_50'])
-    )
     # (
     #     (df["Perc_Drawdown_20d"] < 5) & 
     #     (df['Close_5d'] > df['Close']) & (df['Close_10d'] > df['Close']) & (df['Close_15d'] > df['Close'])  & (df['Close_20d'] > df['Close']) &
@@ -285,6 +273,15 @@ def crea_indicatori(df):
 
     return df
 
+def imposta_target(df):
+    df['Target'] = (
+        (df['EMA_20_5d'] > df['EMA_20']) & (df['EMA_20_10d'] > df['EMA_20']) & (df['EMA_20_15d'] > df['EMA_20'])  & (df['EMA_20_20d'] > df['EMA_20']) &
+        (df['EMA_20_5d'] > df['EMA_50_5d']) &
+        (df['EMA_20_10d'] > df['EMA_50_10d']) &
+        (df['EMA_20_15d'] > df['EMA_50_15d']) &
+        (df['EMA_20_20d'] > df['EMA_50_20d'])
+    )
+    return df
 
 def __trova_massimi_minimi(df, periodo):
     mezzo_periodo = periodo // 2
