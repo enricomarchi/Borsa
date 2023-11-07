@@ -93,7 +93,7 @@ def pct_change(valore_iniziale, valore_finale):
     try:
         return ((valore_finale - valore_iniziale) / valore_iniziale) * 100
     except ZeroDivisionError:
-        return None
+        return 0
     
 def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, bilanciamento=0):
     scalers_prezzo = []
