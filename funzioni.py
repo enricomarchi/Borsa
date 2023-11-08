@@ -95,7 +95,7 @@ def pct_change(valore_iniziale, valore_finale):
     except ZeroDivisionError:
         return 0
     
-def to_XY(dati_ticker, features_prezzo, features_da_scalare_singolarmente, features_meno_piu, features_candele, features_no_scala, elenco_targets, n_timesteps, giorni_previsione, bilanciamento=0):
+def to_XY(dati_ticker, bilanciamento=0):
     scalers_prezzo = []
     scaler_meno_piu = MinMaxScaler(feature_range=(-1, 1))
     scaler_standard = MinMaxScaler()
