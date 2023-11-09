@@ -188,6 +188,18 @@ def to_XY(dati_ticker, bilanciamento=0):
     Y = Y.reshape(-1, 1)
     return idx, X, Y, scalers_prezzo
 
+def analizza_ticker(nome_simbolo, start, end, progress, dropna_iniziali=False, dropna_finali=False):
+    df = yf.download(nome_simbolo, start=start, end=end, progress=progress)
+    df.index = df.index.date
+    if dropna_iniziali:
+        idx = df[df.notna().all(axis=1) == True].index[0]
+        df = df[idx:]
+    if dropna_finali:
+        idx = df[df.notna().all(axis=1) == True].index[-1]
+        df = df[:idx]
+    df = imposta_target(df)
+    return df
+
 def crea_indicatori(df):
     psar = ta.psar(high=df["High"], low=df["Low"], close=df["Close"], af0=0.02, af=0.02, max_af=0.2)
     psar["PSAR"] = psar["PSARl_0.02_0.2"].combine_first(psar["PSARs_0.02_0.2"])
@@ -269,8 +281,6 @@ def crea_indicatori(df):
     # )
 
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    #df.dropna(inplace=True, axis=0)
-
     return df
 
 def imposta_target(df):
