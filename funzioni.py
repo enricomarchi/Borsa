@@ -189,7 +189,10 @@ def to_XY(dati_ticker, bilanciamento=0):
     return idx, X, Y, scalers_prezzo
 
 def analizza_ticker(nome_simbolo, start, end, progress, dropna_iniziali=False, dropna_finali=False):
-    df = yf.download(nome_simbolo, start=start, end=end, progress=progress)
+    start_str = start.strftime('%Y-%m-%d')
+    end_str = end.strftime('%Y-%m-%d')
+    df = yf.download(nome_simbolo, start=start_str, end=end_str, progress=progress)
+    df.index = pd.to_datetime(df.index)
     df = crea_indicatori(df)
     if dropna_iniziali:
         idx = df[df.notna().all(axis=1) == True].index[0]
