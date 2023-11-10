@@ -190,7 +190,7 @@ def to_XY(dati_ticker, bilanciamento=0):
 
 def analizza_ticker(nome_simbolo, start, end, progress, dropna_iniziali=False, dropna_finali=False):
     df = yf.download(nome_simbolo, start=start, end=end, progress=progress)
-    df.index = df.index.date
+    df = crea_indicatori(df)
     if dropna_iniziali:
         idx = df[df.notna().all(axis=1) == True].index[0]
         df = df[idx:]
@@ -198,6 +198,16 @@ def analizza_ticker(nome_simbolo, start, end, progress, dropna_iniziali=False, d
         idx = df[df.notna().all(axis=1) == True].index[-1]
         df = df[:idx]
     df = imposta_target(df)
+    return df
+
+def dropna_iniziali(df):
+    idx = df[df.notna().all(axis=1) == True].index[0]
+    df = df[idx:]
+    return df
+
+def dropna_finali(df):
+    idx = df[df.notna().all(axis=1) == True].index[-1]
+    df = df[:idx]
     return df
 
 def crea_indicatori(df):
