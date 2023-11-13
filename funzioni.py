@@ -188,7 +188,7 @@ def to_XY(dati_ticker, bilanciamento=0):
     Y = Y.reshape(-1, 1)
     return idx, X, Y, scalers_prezzo
 
-def analizza_ticker(nome_simbolo, start, end, progress, dropna_iniziali=False, dropna_finali=False):
+def analizza_ticker(nome_simbolo, start, end, progress=True, dropna_iniziali=False, dropna_finali=False):
     start_str = start.strftime('%Y-%m-%d')
     end_str = end.strftime('%Y-%m-%d')
     df = yf.download(nome_simbolo, start=start_str, end=end_str, progress=progress)
