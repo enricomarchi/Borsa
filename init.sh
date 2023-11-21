@@ -1,0 +1,11 @@
+#!/bin/bash
+pip install pandas
+pip install pandas_ta 
+pip install yfinance 
+pip install plotly 
+pip install imblearn 
+pip install keras_tuner 
+pip install tensorflow_addons 
+pip install pydot
+pip install tables
+#sudo apt install graphviz
