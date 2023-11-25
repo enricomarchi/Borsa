@@ -1,14 +1,19 @@
 {
-    "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug Jupyter Notebook",
+            "name": "Python C++ Debugger",
+            "type": "pythoncpp",
+            "request": "launch",
+            "pythonConfig": "default",
+            "cppConfig": "!!pick 'default (win) Attach' or 'default (gdb) Attach'"
+        },
+        {
+            "name": "Python: Current File",
             "type": "python",
-            "request": "jupyter",
-            "justMyCode": false,
-            "jupyter": {
-                "notebookFile": "${file}"
-            }
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }
