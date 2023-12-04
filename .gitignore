@@ -1,4 +1,5 @@
-dati/
-bayesian_search/
+mod_1_in/
+mod_1_out/
+screeners/
+tickers/
 .venv/
-ta-lib/
