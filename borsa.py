@@ -128,14 +128,14 @@ def dropna_finali(df):
 def imposta_target(df):
     df['Max_Close_20d'] = df['Close'].shift(-20).rolling(window=20, min_periods=1).max()
     df['pct_change_20d'] = df.apply(lambda row: pct_change(row['Close'], row['Max_Close_20d']), axis=1)
-    df['diff_Close_EMA_5'] = df['Close'] - df['EMA_5']
-    df['Min_diff_Close_EMA_5'] = df['diff_Close_EMA_5'].shift(-5).rolling(window=5, min_periods=1).apply(lambda x: (x < 0).any())
+    df['diff_EMA5_EMA20'] = df['EMA_5'] - df['EMA_20']
+    df['Min_diff_EMA5_EMA20_5d'] = df['diff_EMA5_EMA20'].shift(-5).rolling(window=5, min_periods=1).apply(lambda x: (x < 0).any())
     
     df['Target_ingresso'] = (
         (df['pct_change_20d'] > 20)
     )
     df['Target_uscita'] = (
-        (df['Min_diff_Close_EMA_5'] == 1)
+        (df['Min_diff_EMA5_EMA20_5d'] == 1) & (df['EMA_5'] > df['EMA_20'])
     )    
     return df
     
@@ -746,9 +746,10 @@ def concatena(array_list, hdf5_file, dataset_name):
             dset[-array.shape[0]:] = array
 
 class Posizione:
-    def __init__(self, simbolo, ticker, data, n_azioni, bilancio, max_giorni_apertura, stop_loss, take_profit) -> None:
+    def __init__(self, simbolo, ticker, screener_out, data, n_azioni, bilancio, max_giorni_apertura, stop_loss, take_profit) -> None:
         self.simbolo = simbolo
         self.ticker = ticker
+        self.screener_out = screener_out
         self.data = data
         self.prezzo_unitario = ticker['Open'].iloc[0]
         self.n_azioni = n_azioni
@@ -772,18 +773,19 @@ class Posizione:
             [self.simbolo, self.data.normalize(), 'COMPRA', self.prezzo_unitario.round(2), int(self.n_azioni), self.prezzo_tot.round(2), self.stop_loss.round(2), self.take_profit.round(2), self.bilancio.round(2), self.valore.round(2), int(self.giorni_apertura), '', 0, 0]
         ], columns=self._colonne)
 
-    def chiudi(self, data, bilancio, screener_out, forza_chiusura=False):
-        screener_out = screener_out.loc[data].loc[screener_out['Previsione'] > 0.5]
-        if (data in self.ticker.index) or (forza_chiusura):
+    def chiudi(self, data, bilancio, forza_chiusura=False):
+        if ((data in self.ticker.index) and (data in self.screener_out.index)) or (forza_chiusura):
             if forza_chiusura:
                 dati_attuali = self.ticker.iloc[-1:]
+                _screener_out = self.screener_out.loc[data].loc[self.screener_out['Previsione'] > 0.5]
             else:
                 dati_attuali = self.ticker[self.ticker.index == data]
+                _screener_out = pd.DataFrame()
             self.giorni_apertura += 1
             prezzo_attuale = dati_attuali['Open'].iloc[0]
             prezzo_tot = prezzo_attuale * self.n_azioni
             #if (self.giorni_apertura > self.max_giorni_apertura) or (prezzo_attuale < self.stop_loss) or (prezzo_attuale > self.take_profit) or (forza_chiusura):
-            if (self.giorni_apertura > self.max_giorni_apertura) or (self.simbolo in screener_out.index) or (forza_chiusura):
+            if (self.giorni_apertura > self.max_giorni_apertura) or (self.simbolo in _screener_out.index) or (forza_chiusura):
                 bilancio += prezzo_tot
                 if prezzo_attuale > self.prezzo_unitario:
                     esito = 'VINCITA'
@@ -797,7 +799,7 @@ class Posizione:
         return None
 
 class Borsa:
-    def __init__(self, n_simboli_contemporanei, bilancio_iniziale, probabilità_per_acquisto, stop_loss, take_profit, giorni_max_posizione, data_inizio=pd.Timestamp(year=2005, month=1, day=1), data_fine=pd.Timestamp.now().normalize()):
+    def __init__(self, n_simboli_contemporanei, bilancio_iniziale, probabilità_per_acquisto, giorni_max_posizione,stop_loss=0, take_profit=0, data_inizio=pd.Timestamp(year=2005, month=1, day=1), data_fine=pd.Timestamp.now().normalize()):
         self.N_SIMBOLI = n_simboli_contemporanei
         self.DATA_INIZIO = pd.to_datetime(data_inizio)
         self.DATA_FINE = pd.to_datetime(data_fine)
@@ -898,10 +900,10 @@ class Borsa:
         with open(f'_indice.json', 'w') as jsonfile:
             json.dump(indice, jsonfile, indent=4)    
 
-    def avvia_screener(self, append=False) -> None:
+    def avvia_screener(self, append=False, inizia_da=0) -> None:
         tot_tickers = len(self.lista_tickers)
 
-        for i in range(0, tot_tickers):
+        for i in range(inizia_da, tot_tickers):
             try:
                 nome_simbolo = self.lista_tickers.iloc[i]["Ticker"]
                 print("\033[42m" + f'{i+1}/{tot_tickers}) Caricamento ticker {nome_simbolo}' + "\033[0m")
@@ -955,6 +957,13 @@ class Borsa:
         # Usa .loc per selezionare tutte le righe con quell'indice di livello 0
         return ultimo_indice.date(), self.screener.loc[ultimo_indice], ultimo_indice_out.date(), self.screener_out.loc[ultimo_indice_out]
 
+    @property
+    def valore_posizioni(self, data):
+        tot = 0
+        for pos in self._posizioni:
+            tot += pos.valore(data)
+        return tot
+
     def reset_trading(self) -> None:
         self._data_corrente = self.DATA_INIZIO
         self._posizioni = []
@@ -983,12 +992,12 @@ class Borsa:
     def _chiudi_posizioni(self, forza_chiusura=False):
         posizioni_da_mantenere = []
         for pos in self._posizioni:
-            df = pos.chiudi(self._data_corrente, self._bilancio, self.screener_out, forza_chiusura=forza_chiusura)
+            df = pos.chiudi(self._data_corrente, self._bilancio, forza_chiusura=forza_chiusura)
             if df is not None or forza_chiusura:
                 self.esito_trading = pd.concat([self.esito_trading, df], axis=0, ignore_index=True)
                 df = df.iloc[0]
-                self._valore_posizioni -= df['Valore_posizione']
                 self._bilancio = df['Bilancio']
+                self._valore_posizioni = self.valore_posizioni(self._data_corrente)
                 pos_da_aprire = (self.N_SIMBOLI - len(self._posizioni))
                 if pos_da_aprire == 0:
                     self._bilancio_per_simbolo = 0.
@@ -1006,9 +1015,9 @@ class Borsa:
             prezzo = ticker["Open"].iloc[0]
             n_azioni = self._bilancio_per_simbolo // prezzo
             if (prezzo < self._bilancio_per_simbolo):
-                pos = Posizione(simbolo, ticker, self._data_corrente, n_azioni, self._bilancio, self.GIORNI_POS, self.SL, self.TP)
+                pos = Posizione(simbolo, ticker, self.screener_out, self._data_corrente, n_azioni, self._bilancio, self.GIORNI_POS, self.SL, self.TP)
                 self._posizioni.append(pos)
-                self._valore_posizioni += pos.valore
+                self._valore_posizioni += pos.valore(self._data_corrente)
                 self.esito_trading = pd.concat([self.esito_trading, pos.to_df()], axis=0, ignore_index=True)
                 self._bilancio = pos.bilancio
                 pos_da_aprire = (self.N_SIMBOLI - len(self._posizioni))
@@ -1393,26 +1402,21 @@ class DataGenerator(Sequence):
         self.file.close()
 
 
-
 if __name__ == '__main__':
-    TP = 0.15
-    SL = 0.07
+    #TP = 0.15
+    #SL = 0.07
     PROBABILITA_PER_ACQUISTO = 0.5
     BILANCIO_INIZIALE = 1000
     GIORNI_MAX_POSIZIONE = 40
     N_SIMBOLI = 10
-    DATA_INIZIO = pd.Timestamp(2005, 1, 1)
+    DATA_INIZIO = pd.Timestamp(2013, 1, 1)
 
     inizializza_gpu()
     #modifica_target()
     
-    borsa = Borsa(N_SIMBOLI, BILANCIO_INIZIALE, PROBABILITA_PER_ACQUISTO, SL, TP, GIORNI_MAX_POSIZIONE, data_inizio=DATA_INIZIO)
-    
-
-    borsa.avvia_screener(append=False)
+    borsa = Borsa(N_SIMBOLI, BILANCIO_INIZIALE, PROBABILITA_PER_ACQUISTO, GIORNI_MAX_POSIZIONE, data_inizio=DATA_INIZIO)
+    borsa.aggiorna_dati()
     data, scr, data_out, scr_out = borsa.ultimo_screener()
-    
-    print(data)
-    scr.head(5)
 
-
+    borsa.avvia_trading()
+    borsa.esito_trading
