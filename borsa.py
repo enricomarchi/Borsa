@@ -750,7 +750,7 @@ def concatena(array_list, hdf5_file, dataset_name):
 class Posizione:
     def __init__(self, simbolo, dati_ticker, data, prezzo, n_azioni, stop_loss=None, take_profit=None):
         self.simbolo = simbolo
-        self.ticker = dati_ticker.copy()
+        self._ticker = dati_ticker.copy()
         self.data_apertura = data
         self.data_corrente = data
         self.data_minimo = data
@@ -762,6 +762,7 @@ class Posizione:
         self.prezzo_minimo = self.prezzo_apertura
         self.prezzo_massimo = self.prezzo_apertura
         self.prezzo_chiusura = None
+        self.ticker = self._ticker.iloc[0]
         self.pct_change = 0
         self.pct_min = 0
         self.pct_max = 0
@@ -780,7 +781,7 @@ class Posizione:
             self.take_profit = prezzo * (1 + take_profit)
     
     def __str__(self):
-        return self.simbolo
+        return f'{self.simbolo}'
     
     def to_dict(self):
         dict = {
@@ -806,11 +807,11 @@ class Posizione:
     def step(self):
         self.data_corrente += timedelta(days=1)
         if self.data_corrente in self.ticker.index:
-            prezzi = self.ticker.loc[self.data_corrente]
-            low = prezzi['Low']
-            high = prezzi['High']
-            open = prezzi['Open']
-            close = prezzi['Close']
+            self.ticker = self._ticker.loc[self.data_corrente].iloc[0]
+            low = self.ticker['Low']
+            high = self.ticker['High']
+            open = self.ticker['Open']
+            close = self.ticker['Close']
             if low < self.stop_loss:
                 self.chiudi(self.data_corrente, self.stop_loss)
                 self.stato = 'CHIUSURA su STOP LOSS'
@@ -833,7 +834,7 @@ class Posizione:
                 self.giorni_apertura += 1
 
     def chiudi(self):
-        prezzo = self.ticker.loc[self.data_corrente, 'Open']
+        prezzo = self.ticker['Open']
         self.prezzo_corrente = prezzo
         self.prezzo_chiusura = prezzo
         self.stato = 'CHIUSURA'
@@ -851,6 +852,7 @@ class Borsa:
         self.GIORNI_POS = giorni_max_posizione
         self._posizioni = []
         self._valore_posizioni = 0
+        self._pos_aperte = 0
         self._bilancio = None
         self._data_corrente = None
         self._bilancio_per_simbolo = None
@@ -1053,6 +1055,7 @@ class Borsa:
         self.esito_trading = pd.DataFrame()
         self._bilancio_per_simbolo = self.BILANCIO_INIZIALE / self.N_SIMBOLI
         self._valore_posizioni = 0
+        self._pos_aperte = 0
 
     def simulazione_trading(self) -> None:
         self.reset_trading()
@@ -1073,28 +1076,37 @@ class Borsa:
         for pos in self._posizioni:
             importo = pos.prezzo_corrente * pos.n_azioni
             self._valore_posizioni += importo
-            #self.aggiorna_esito(pos)
+            self.aggiorna_esito(pos)
 
     def aggiorna_esito(self, posizione):
         dict_esito = posizione.to_dict()
         dict_esito['Bilancio'] = self._bilancio
-        dict_esito['Tot_posizioni_aperte'] = len(self._posizioni)
+        dict_esito['Tot_posizioni_aperte'] = self._pos_aperte
         dict_esito['Valore_posizioni_aperte'] = self._valore_posizioni
         df_esito = pd.DataFrame(dict_esito, index=[0])
         self.esito_trading = pd.concat([self.esito_trading, df_esito], axis=0, ignore_index=True)
-        print(f"\rBilancio: {dict_esito['Bilancio']}, Valore posizioni: {dict_esito['Valore_posizioni_aperte']}, n.pos: {dict_esito['Tot_posizioni_aperte']}                          ", end=' ', flush=True)
+        print(f"{posizione.stato} {posizione.simbolo}, Bilancio: {dict_esito['Bilancio']}, Valore posizioni: {dict_esito['Valore_posizioni_aperte']}, n.pos: {dict_esito['Tot_posizioni_aperte']}")
         
     def _apri_posizioni(self):
         if self._data_corrente in self.screener.index.get_level_values(0):
             scr = self.screener.loc[(self._data_corrente, slice(None)), :]
+            scr = scr.reset_index(level='Data', drop=True)
+            # if self._data_corrente in self.screener_out.index.get_level_values('Data'):
+            #     scr_out = self.screener_out.loc[(self._data_corrente, slice(None)), :]
+            #     scr_out = scr_out.reset_index(level='Data', drop=True)
+            # else:
+            #     scr_out = pd.DataFrame()
+            # scr = pd.merge(left=scr, right=scr_out, how='left', left_index=True, right_index=True, indicator=True)
+            # scr = scr.loc[scr['_merge'] == 'left_only', :]
             i = 0
-            while (len(self._posizioni) < self.N_SIMBOLI) and (i < len(scr)):
-                simbolo = scr.index[i][1]
+            while (self._pos_aperte < self.N_SIMBOLI) and (i < len(scr)):
+                simbolo = scr.index[i]
 
                 ticker = pd.read_hdf(f'tickers/{simbolo}.h5', 'ticker')
                 if self._data_corrente in ticker.index:
-                    prezzi = ticker.loc[ticker.index == self._data_corrente]
-                    prezzo = prezzi["Open"].iloc[0]
+                    prezzi = ticker.loc[ticker.index == self._data_corrente].iloc[0]
+                    prezzo = prezzi["Open"]
+                    self._aggiorna_bilancio_per_simbolo()
                     n_azioni = self._bilancio_per_simbolo // prezzo
                     if (prezzo < self._bilancio_per_simbolo) and (simbolo not in [x.simbolo for x in self._posizioni]):
                         pos = Posizione(simbolo, ticker, self._data_corrente, prezzo, n_azioni, self.SL, self.TP)
@@ -1103,46 +1115,49 @@ class Borsa:
                         commissione = self.applica_commissione(importo)
                         self._bilancio = self._bilancio - importo - commissione
                         self._valore_posizioni += importo
+                        self._pos_aperte += 1
+                        self._aggiorna_bilancio_per_simbolo()
                         self.aggiorna_esito(pos)
-                        pos_da_aprire = (self.N_SIMBOLI - len(self._posizioni))
-                        if pos_da_aprire == 0:
-                            self._bilancio_per_simbolo = 0.
-                        else:
-                            self._bilancio_per_simbolo = self._bilancio / pos_da_aprire                
                 i += 1
-        
+    
+    def _aggiorna_bilancio_per_simbolo(self):
+        pos_da_aprire = (self.N_SIMBOLI - self._pos_aperte)
+        if pos_da_aprire == 0:
+            self._bilancio_per_simbolo = 0.
+        else:
+            self._bilancio_per_simbolo = self._bilancio / pos_da_aprire       
+         
     def applica_commissione(self, importo_transazione, broker='FINECO'):
         if broker == 'FINECO':
-            if importo_transazione < 2.95:
+            tot = importo_transazione * 0.0019
+            if tot < 2.95:
                 return 2.95
-            elif importo_transazione > 19:
-                return 19.
+            elif tot > 19:
+                return 19
             else:
-                return importo_transazione * 0.0019
+                return tot 
         else:
             return 0.
 
     def _chiudi_posizioni(self):
-        if self._data_corrente in self.screener_out.index.get_level_values('Data'):
-            scr_out = self.screener_out.loc[(self._data_corrente, slice(None)), :]
-            scr_out = scr_out.reset_index(level='Data', drop=True)
-            i = 0
-            pos_da_mantenere = []
-            for pos in self._posizioni:
-                if (pos.simbolo in scr_out.index):
-                    pos.chiudi()
-                    importo = pos.prezzo_chiusura * pos.n_azioni
-                    commissione = self.applica_commissione(importo)
-                    print(f'importo {importo}')
-                    print(f'bilancio {self._bilancio}')
-                    self._bilancio = self._bilancio + importo - commissione
-                    print(f'bilancio {self._bilancio}')
-                    self._valore_posizioni -= importo
-                    self.aggiorna_esito(pos)
-                else:
-                    pos_da_mantenere.append(pos)   
-                i += 1
-            self._posizioni = pos_da_mantenere
+        # if self._data_corrente in self.screener_out.index.get_level_values('Data'):
+        #     scr_out = self.screener_out.loc[(self._data_corrente, slice(None)), :]
+        #     scr_out = scr_out.reset_index(level='Data', drop=True)
+        i = 0
+        pos_da_mantenere = []
+        for pos in self._posizioni:
+            if (pos.ticker['EMA_5'] < pos.ticker['EMA_20']):
+                pos.chiudi()
+                importo = pos.prezzo_chiusura * pos.n_azioni
+                commissione = self.applica_commissione(importo)
+                self._pos_aperte -= 1 
+                self._bilancio = self._bilancio + importo - commissione
+                self._valore_posizioni -= importo
+                self.aggiorna_esito(pos)
+            else:
+                pos_da_mantenere.append(pos)   
+            i += 1
+        self._posizioni = pos_da_mantenere
 
     # Funzione obiettivo per l'ottimizzazione
     def funzione_obiettivo(self, N_SIMBOLI, GIORNI_POS, SL, TP):
@@ -1543,3 +1558,16 @@ def ottimizzazione_parametri():
 
     df_results = pd.DataFrame(x_iters, columns=['N_SIMBOLI', 'GIORNI_POS', 'SL', 'TP'])
     df_results['Valore_Funzione'] = fun_values
+
+TP = 0.20
+SL = 0.07
+BILANCIO_INIZIALE = 1000
+N_SIMBOLI = 10
+DATA_INIZIO = pd.Timestamp(2013, 1, 1)
+
+inizializza_gpu()
+
+borsa = Borsa(N_SIMBOLI, BILANCIO_INIZIALE, data_inizio=DATA_INIZIO)#, stop_loss=SL, take_profit=TP)
+borsa.aggiorna_dati()
+borsa.simulazione_trading()
+borsa.esito_trading
